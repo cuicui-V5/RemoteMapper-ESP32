@@ -1,4 +1,4 @@
-# RemoteMapper-ESP32
+# RemoteMapper-ESP32 Windows下小米蓝牙遥控器最佳适配方案
 
 基于 ESP32-S3 的小米蓝牙遥控器 2 Pro (RC003) 转 USB 复合设备硬件桥接方案。
 
