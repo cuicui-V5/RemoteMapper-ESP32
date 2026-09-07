@@ -9,3 +9,9 @@ build/
 *.map
 *.hex
 *.log
+
+# RemoteMapper-Flasher standalone flashing tools & binaries
+!RemoteMapper-Flasher/bin/*.bin
+!RemoteMapper-Flasher/tools/*.exe
+!RemoteMapper-Flasher/tools/*.bin
+!tools/boot_app0.bin

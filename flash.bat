@@ -1,4 +1,16 @@
 @echo off
+cd /d "%~dp0"
+
+where platformio >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    python -m platformio --version >nul 2>nul
+    if %ERRORLEVEL% NEQ 0 (
+        echo [INFO] PlatformIO not detected. Launching standalone flasher...
+        call "%~dp0RemoteMapper-Flasher\flash.bat"
+        exit /b %ERRORLEVEL%
+    )
+)
+
 set TARGET_ENV=esp32s3_n16r8
 if "%1"=="n8r2" set TARGET_ENV=esp32s3_n8r2
 if "%1"=="n4r2" set TARGET_ENV=esp32s3_n4r2
@@ -13,4 +25,3 @@ if %ERRORLEVEL% NEQ 0 (
     exit /b %ERRORLEVEL%
 )
 echo [SUCCESS] Flash completed successfully!
-
