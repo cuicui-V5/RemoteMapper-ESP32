@@ -194,18 +194,9 @@ static void handle_nvs_get() {
 }
 
 static void handle_nvs_save() {
-    if (!s_server.hasArg("plain")) {
-        s_server.send(400, "application/json", "{\"error\":\"missing_body\"}");
-        return;
-    }
-    String err;
-    bool ok = nvs_manager_apply_json(s_server.arg("plain"), err);
-    if (ok) {
-        s_server.send(200, "application/json", "{\"status\":\"saved\",\"message\":\"NVS配置已成功更新并写入Flash！\"}");
-    } else {
-        s_server.send(400, "application/json", String("{\"error\":\"") + err + "\"}");
-    }
+    s_server.send(403, "application/json", "{\"error\":\"disabled\",\"message\":\"全量 NVS 直接回写功能已被禁用，按键配置请使用 /api/keymap/save 导入。\"}");
 }
+
 
 static void handle_nvs_reset() {
     bool ok = nvs_manager_erase_all();

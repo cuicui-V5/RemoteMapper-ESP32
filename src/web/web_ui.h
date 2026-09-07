@@ -328,7 +328,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             <button class="tab-btn active" onclick="switchTab('tab-tester')">遥控器与改键测试</button>
             <button class="tab-btn" onclick="switchTab('tab-ble')">蓝牙配对管理</button>
             <button class="tab-btn" onclick="switchTab('tab-logs')">运行日志</button>
-            <button class="tab-btn" onclick="switchTab('tab-nvs')">NVS 配置管理</button>
+            <button class="tab-btn" onclick="switchTab('tab-config')">配置管理</button>
             <button class="tab-btn" onclick="switchTab('tab-wifi')">Wi-Fi 与系统配置</button>
         </div>
 
@@ -511,52 +511,109 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             </div>
         </div>
 
-        <!-- TAB 4: NVS Config Manager -->
-        <div id="tab-nvs" class="tab-content">
+        <!-- TAB 4: Configuration Management -->
+        <div id="tab-config" class="tab-content">
+            <!-- Section 1 & 2: Keymap Backup & Import -->
             <div class="card">
-                <div class="card-header" style="flex-wrap: wrap; gap: 10px;">
+                <div class="card-header">
                     <div>
-                        <span style="font-size: 16px;">NVS 配置管理</span>
+                        <span style="font-size: 16px;">按键映射与层级配置备份</span>
                         <div style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-top: 4px;">
-                            以 JSON 形式统一管理存储在 Flash NVS 中的所有持久化参数。
+                            仅导入或导出 5 个层级的按键映射规则（Keymap），不包含 Wi-Fi、蓝牙配对及底层系统参数，安全无冲突。
                         </div>
                     </div>
-                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                        <button class="btn btn-outline" style="font-size: 12px;" onclick="loadNvsConfig()">重新读取</button>
-                        <button class="btn btn-outline" style="font-size: 12px;" onclick="formatNvsJson()">格式化 JSON</button>
-                        <button class="btn btn-outline" style="font-size: 12px;" onclick="copyNvsJson()">复制文本</button>
-                        <button class="btn btn-outline" style="font-size: 12px;" onclick="exportNvsJson()">导出备份</button>
-                        <button class="btn btn-outline" style="font-size: 12px;" onclick="document.getElementById('nvs-file-input').click()">导入文件</button>
-                        <input type="file" id="nvs-file-input" accept=".json" style="display:none;" onchange="importNvsJson(event)">
-                        <button class="btn" style="font-size: 12px; background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));" onclick="saveNvsConfig()">保存写入 NVS</button>
-                    </div>
                 </div>
-
-                <div style="position: relative; margin-bottom: 16px;">
-                    <div id="nvs-json-status" style="position: absolute; top: 12px; right: 16px; font-size: 12px; z-index: 2; padding: 3px 8px; border-radius: 6px; background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.4);">
-                        JSON 格式有效
-                    </div>
-                    <textarea id="nvs-editor" spellcheck="false" placeholder="正在读取 ESP32 NVS 配置..." 
-                        style="width: 100%; height: 460px; background: #070a10; color: #38bdf8; font-family: 'Fira Code', 'Consolas', 'Courier New', monospace; font-size: 13px; line-height: 1.6; padding: 16px; border: 1px solid var(--border-color); border-radius: 12px; resize: vertical; outline: none; box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);"
-                        oninput="validateNvsJson()" onkeydown="handleNvsEditorKey(event)"></textarea>
-                </div>
-
                 <div class="grid-2">
-                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 18px; font-size: 13px; color: var(--text-muted); line-height: 1.6;">
-                        <b style="color: var(--text-main); display:block; margin-bottom:6px;">NVS 命名空间说明</b>
-                        • <code style="color:var(--accent-cyan)">wifi_conf</code>: Wi-Fi 与热点连接参数<br>
-                        • <code style="color:var(--accent-cyan)">ble_conf</code>: 绑定的蓝牙遥控器参数<br>
-                        • <code style="color:var(--accent-cyan)">keymap_conf</code>: 各层级按键映射规则字典<br>
-                        • 保存后将持久化写入 Flash 中。
-                    </div>
-                    <div style="background: #090d16; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; padding: 14px 18px; font-size: 13px; display:flex; flex-direction:column; justify-content:space-between;">
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
                         <div>
-                            <b style="color: #f87171; display:block; margin-bottom:6px;">清空 NVS / 恢复出厂设置</b>
-                            <span style="color: var(--text-muted);">擦除 Flash NVS 分区中的所有存储数据（清除所有 Wi-Fi、蓝牙配对和改键设置），并自动重启。</span>
+                            <b style="color: var(--text-main); font-size: 14px; display: block; margin-bottom: 8px;">导出配置</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                将当前 ESP32 的所有按键映射及层级设置导出为 <code>.json</code> 文件，用于本地备份或多设备间快速复制。
+                            </p>
                         </div>
-                        <button class="btn btn-danger" style="margin-top: 12px; align-self: flex-start;" onclick="resetNvsFactory()">清空全部 NVS 并恢复出厂</button>
+                        <div style="margin-top: 16px;">
+                            <button class="btn" style="font-size: 13px; width: 100%;" onclick="exportKeymapConfig()">导出按键配置 (.json)</button>
+                        </div>
+                    </div>
+
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <b style="color: var(--text-main); font-size: 14px; display: block; margin-bottom: 8px;">导入配置</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                从本地 JSON 文件恢复按键层级配置。系统将校验数据完整性，仅覆盖按键映射，绝不影响 Wi-Fi 与蓝牙绑定状态。
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <input type="file" id="keymap-file-input" accept=".json" style="display:none;" onchange="importKeymapConfig(event)">
+                            <button class="btn btn-outline" style="font-size: 13px; width: 100%;" onclick="document.getElementById('keymap-file-input').click()">导入按键配置 (.json)</button>
+                        </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Section 3: Reset Operations -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <span style="font-size: 16px;">配置重置与清空</span>
+                        <div style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-top: 4px;">
+                            提供按键层级单独重置与系统出厂完全重置两种方式，请仔细区分后执行。
+                        </div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div style="background: #090d16; border: 1px solid rgba(245, 158, 11, 0.35); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <b style="color: #fbbf24; font-size: 14px; display: block; margin-bottom: 8px;">清空按键映射与层级数据</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                将所有 5 个层级的自定义映射规则恢复为出厂默认。<br>
+                                <span style="color: #34d399;">保留所有 Wi-Fi 密码、AP 设置以及已绑定的蓝牙遥控器连接。</span>
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button class="btn btn-outline" style="font-size: 13px; width: 100%; color: #fbbf24; border-color: rgba(245, 158, 11, 0.4);" onclick="resetKeymapOnly()">清空按键映射（保留蓝牙与WiFi配置）</button>
+                        </div>
+                    </div>
+
+                    <div style="background: #090d16; border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <b style="color: #f87171; font-size: 14px; display: block; margin-bottom: 8px;">清空全部 NVS 数据（出厂完全重置）</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                彻底擦除 Flash NVS 内部的全部持久化分区。<br>
+                                <span style="color: #f87171;">所有网络、蓝牙遥控器配对与按键映射将全部丢失</span>，设备将立即自动重启。
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button class="btn btn-danger" style="font-size: 13px; width: 100%;" onclick="resetNvsFactory()">清空全部 NVS 数据（出厂完全重置）</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: Read-Only Debug Viewer -->
+            <div class="card">
+                <details id="nvs-debug-details" ontoggle="onNvsDebugToggle(this)">
+                    <summary style="font-size: 15px; font-weight: 600; color: var(--text-main); user-select: none; display: flex; align-items: center; justify-content: space-between; outline: none; cursor: pointer;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="nvs-details-arrow" style="font-size: 12px; color: var(--text-muted); display: inline-block; width: 16px;">▶</span>
+                            <span>只读调试查看（仅查看纯文本格式的 NVS 内部数据）</span>
+                            <span class="badge" style="font-size: 11px; padding: 2px 8px;">纯只读</span>
+                        </div>
+                        <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">点击展开 / 折叠</span>
+                    </summary>
+                    <div style="margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 14px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+                            <div style="font-size: 12px; color: var(--text-muted);">
+                                当前 ESP32 Flash NVS 中读取到的内部键值快照（含底层驱动与系统数据）。该区域严格只读，不允许直接修改或回写。
+                            </div>
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-outline" style="font-size: 12px; padding: 6px 12px;" onclick="loadNvsReadOnly(true)">刷新只读数据</button>
+                                <button class="btn btn-outline" style="font-size: 12px; padding: 6px 12px;" onclick="copyNvsReadOnly()">复制到剪贴板</button>
+                            </div>
+                        </div>
+                        <pre id="nvs-readonly-viewer" class="log-terminal" style="height: 380px; white-space: pre-wrap; word-break: break-all; background: #070a10; color: #38bdf8; border: 1px solid var(--border-color); border-radius: 8px; padding: 14px; font-family: 'Fira Code', Consolas, monospace; font-size: 12px; line-height: 1.5;">点击上方展开即可加载 NVS 内部数据快照...</pre>
+                    </div>
+                </details>
             </div>
         </div>
 
@@ -954,9 +1011,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
             event.target.classList.add('active');
             document.getElementById(id).classList.add('active');
-            if (id === 'tab-nvs') {
-                loadNvsConfig();
-            }
         }
 
         async function fetchStatus() {
@@ -2080,146 +2134,130 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }, 3000);
         }
 
-        async function loadNvsConfig() {
+        // Config Management: Export Keymap
+        async function exportKeymapConfig() {
             try {
-                const res = await fetch('/api/nvs');
-                const json = await res.json();
-                const editor = document.getElementById('nvs-editor');
-                editor.value = JSON.stringify(json, null, 2);
-                validateNvsJson();
-                showToast('NVS 配置已从 Flash 加载');
+                const res = await fetch('/api/keymap');
+                const data = await res.json();
+                const jsonStr = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonStr], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const now = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+                a.href = url;
+                a.download = `RemoteMapper_Keymap_${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('按键与层级配置已成功导出！');
             } catch(e) {
-                showToast('读取 NVS 失败: ' + e.message, true);
+                showToast('导出配置失败: ' + e.message, true);
             }
         }
 
-        function validateNvsJson() {
-            const editor = document.getElementById('nvs-editor');
-            const badge = document.getElementById('nvs-json-status');
-            if (!editor || !badge) return false;
-            try {
-                JSON.parse(editor.value);
-                badge.innerHTML = 'JSON 格式有效';
-                badge.style.background = 'rgba(16,185,129,0.2)';
-                badge.style.color = '#34d399';
-                badge.style.borderColor = 'rgba(16,185,129,0.4)';
-                return true;
-            } catch(e) {
-                badge.innerHTML = e.message;
-                badge.style.background = 'rgba(239,68,68,0.2)';
-                badge.style.color = '#f87171';
-                badge.style.borderColor = 'rgba(239,68,68,0.4)';
-                return false;
-            }
-        }
-
-        function formatNvsJson() {
-            const editor = document.getElementById('nvs-editor');
-            try {
-                const obj = JSON.parse(editor.value);
-                editor.value = JSON.stringify(obj, null, 2);
-                validateNvsJson();
-                showToast('JSON 格式化完成');
-            } catch(e) {
-                showToast('无法格式化，当前 JSON 存在语法错误: ' + e.message, true);
-            }
-        }
-
-        function copyNvsJson() {
-            const editor = document.getElementById('nvs-editor');
-            navigator.clipboard.writeText(editor.value).then(() => {
-                showToast('已复制 NVS JSON 到剪贴板');
-            }).catch(() => {
-                editor.select();
-                document.execCommand('copy');
-                showToast('已复制到剪贴板');
-            });
-        }
-
-        function exportNvsJson() {
-            const editor = document.getElementById('nvs-editor');
-            const blob = new Blob([editor.value], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            const timeStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            a.href = url;
-            a.download = `RemoteMapper_NVS_Backup_${timeStr}.json`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            showToast('NVS 备份文件已导出下载');
-        }
-
-        function importNvsJson(e) {
+        // Config Management: Import Keymap
+        function importKeymapConfig(e) {
             const file = e.target.files[0];
             if (!file) return;
             const reader = new FileReader();
-            reader.onload = function(evt) {
+            reader.onload = async function(evt) {
                 try {
-                    const obj = JSON.parse(evt.target.result);
-                    document.getElementById('nvs-editor').value = JSON.stringify(obj, null, 2);
-                    validateNvsJson();
-                    showToast('文件导入成功，请点击“保存写入 NVS”生效');
+                    const data = JSON.parse(evt.target.result);
+                    if (!data || !Array.isArray(data.layers)) {
+                        throw new Error('无效的按键配置格式（必须包含 layers 数组）');
+                    }
+                    if (!confirm(`确定要导入按键配置文件「${file.name}」吗？\n\n导入后将覆盖所有按键映射与层级设置，保留现有的 Wi-Fi 与蓝牙配置。`)) {
+                        return;
+                    }
+                    const res = await fetch('/api/keymap/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const ret = await res.json();
+                    if (res.ok) {
+                        showToast('按键配置导入成功并已保存！');
+                        await loadKeymap();
+                    } else {
+                        showToast('导入失败: ' + (ret.error || '服务器拒绝该配置'), true);
+                    }
                 } catch(err) {
-                    showToast('导入文件解析失败: ' + err.message, true);
+                    showToast('导入解析失败: ' + err.message, true);
+                } finally {
+                    e.target.value = '';
                 }
             };
             reader.readAsText(file);
-            e.target.value = '';
         }
 
-        async function saveNvsConfig() {
-            const editor = document.getElementById('nvs-editor');
-            if (!validateNvsJson()) {
-                showToast('当前 JSON 存在语法错误，无法保存！', true);
-                return;
-            }
-            if (!confirm('确定要将当前编辑的 JSON 写入 ESP32 Flash NVS 吗？\n写入后参数将立即更新。')) {
+        // Config Management: Reset Keymap Only (preserve WiFi & BLE)
+        async function resetKeymapOnly() {
+            if (!confirm('确定要清空所有按键映射与层级设置吗？\n\n所有按键将恢复为出厂默认映射规则。\n蓝牙遥控器配对与 Wi-Fi 网络参数将完全保留！')) {
                 return;
             }
             try {
-                const res = await fetch('/api/nvs/save', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: editor.value
-                });
-                const ret = await res.json();
+                const res = await fetch('/api/keymap/reset', { method: 'POST' });
                 if (res.ok) {
-                    showToast(ret.message || 'NVS 配置已成功保存到 Flash！');
-                    loadKeymap();
+                    await loadKeymap();
+                    showToast('按键与层级数据已恢复出厂默认（蓝牙与Wi-Fi配置已保留）');
                 } else {
-                    showToast('保存失败: ' + (ret.error || '未知错误'), true);
+                    showToast('重置按键映射失败', true);
                 }
             } catch(e) {
-                showToast('保存请求失败: ' + e.message, true);
+                showToast('请求失败: ' + e.message, true);
             }
         }
 
+        // Config Management: Factory Reset (wipe all NVS)
         async function resetNvsFactory() {
-            if (!confirm('警告：此操作将清空 ESP32 内部的所有 NVS 持久化数据（包括 Wi-Fi 密码、遥控器绑定、自定义按键），并自动重启！\n\n确定要执行出厂重置吗？')) {
+            if (!confirm('⚠️ 严重警告：此操作将清空 ESP32 内部的全部 NVS 持久化数据！\n\n包括：\n• 所有 Wi-Fi 密码与 AP 热点设置\n• 绑定的蓝牙遥控器配对信息\n• 所有自定义按键与多层级映射\n\n设备将自动重启并完全恢复出厂设置！是否继续？')) {
                 return;
             }
             try {
                 const res = await fetch('/api/nvs/reset', { method: 'POST' });
                 const ret = await res.json();
-                showToast(ret.message || 'NVS 已清空，设备重启中...');
-                setTimeout(() => location.reload(), 3000);
+                showToast(ret.message || '全部 NVS 已清空，设备重启中...');
+                setTimeout(() => location.reload(), 3500);
             } catch(e) {
                 showToast('操作失败: ' + e.message, true);
             }
         }
 
-        function handleNvsEditorKey(e) {
-            if (e.key === 'Tab') {
-                e.preventDefault();
-                const textarea = e.target;
-                const start = textarea.selectionStart;
-                const end = textarea.selectionEnd;
-                textarea.value = textarea.value.substring(0, start) + '  ' + textarea.value.substring(end);
-                textarea.selectionStart = textarea.selectionEnd = start + 2;
-                validateNvsJson();
+        // Config Management: Read-Only NVS Debug Viewer
+        function onNvsDebugToggle(detailsEl) {
+            const arrow = document.getElementById('nvs-details-arrow');
+            if (arrow) arrow.innerText = detailsEl.open ? '▼' : '▶';
+            if (detailsEl.open) {
+                loadNvsReadOnly(false);
             }
+        }
+
+        async function loadNvsReadOnly(forceToast = false) {
+            const viewer = document.getElementById('nvs-readonly-viewer');
+            if (!viewer) return;
+            if (forceToast) viewer.textContent = '正在刷新 NVS 内部数据...';
+            try {
+                const res = await fetch('/api/nvs');
+                const json = await res.json();
+                viewer.textContent = JSON.stringify(json, null, 2);
+                if (forceToast) showToast('NVS 内部数据已刷新');
+            } catch(e) {
+                viewer.textContent = '读取 NVS 数据失败: ' + e.message;
+                if (forceToast) showToast('读取 NVS 失败: ' + e.message, true);
+            }
+        }
+
+        function copyNvsReadOnly() {
+            const viewer = document.getElementById('nvs-readonly-viewer');
+            if (!viewer) return;
+            navigator.clipboard.writeText(viewer.textContent).then(() => {
+                showToast('已复制 NVS 只读数据到剪贴板');
+            }).catch(() => {
+                showToast('复制失败，请手动选取文本');
+            });
         }
 
         // Periodic background pollers
