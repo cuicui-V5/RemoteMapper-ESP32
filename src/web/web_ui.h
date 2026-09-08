@@ -486,12 +486,46 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             </div>
         </div>
 
-        <!-- TAB 2: BLE Device Radar -->
+        <!-- TAB 2: BLE Device Radar & Pairing Management -->
         <div id="tab-ble" class="tab-content">
+            <!-- Section 1: Current BLE Pairing & Connection Status -->
             <div class="card">
                 <div class="card-header">
-                    <span>蓝牙设备配对</span>
-                    <button class="btn" onclick="scanBleDevices()">扫描蓝牙设备</button>
+                    <div>
+                        <span style="font-size: 16px;">蓝牙遥控器配对与绑定管理</span>
+                        <div style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-top: 4px;">
+                            管理当前 ESP32 记忆的唯一配对目标。如果更换了遥控器或需要重新配对，可在此清空配对信息。
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline" style="font-size: 12px;" onclick="reconnectBle()">重新搜索连接</button>
+                        <button class="btn btn-danger" style="font-size: 12px;" onclick="unpairBleDevice()">清空蓝牙配对信息</button>
+                    </div>
+                </div>
+                <div class="grid-2" style="margin-top: 14px;">
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px;">
+                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">实时物理连接</div>
+                        <div id="ble-detail-conn-state" style="font-size: 16px; font-weight: bold; color: var(--text-muted);">正在获取...</div>
+                        <div id="ble-detail-conn-device" style="font-size: 13px; color: var(--text-muted); margin-top: 4px; font-family: monospace;">-</div>
+                    </div>
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px;">
+                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">NVS 固化绑定目标 (专属独占)</div>
+                        <div id="ble-detail-bound-info" style="font-size: 16px; font-weight: bold; color: var(--accent-cyan);">正在获取...</div>
+                        <div id="ble-detail-bound-mac" style="font-size: 13px; color: var(--text-muted); margin-top: 4px; font-family: monospace;">-</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 2: Nearby BLE Radar Scanner -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <span style="font-size: 16px;">周围蓝牙设备扫描与手动绑定</span>
+                        <div style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-top: 4px;">
+                            点击扫描瞬时检索附近设备，点击“连接并绑定”即可立即锁定目标遥控器。
+                        </div>
+                    </div>
+                    <button class="btn" id="btn-ble-scan" onclick="scanBleDevices()">扫描蓝牙设备</button>
                 </div>
                 <div id="ble-dev-list" style="margin-top: 14px;">点击上方按钮扫描附近的蓝牙遥控器...</div>
             </div>
@@ -1009,8 +1043,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         function switchTab(id) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            event.target.classList.add('active');
-            document.getElementById(id).classList.add('active');
+            if (event && event.target) event.target.classList.add('active');
+            const targetEl = document.getElementById(id);
+            if (targetEl) targetEl.classList.add('active');
+            if (id === 'tab-ble') {
+                refreshBleInfo();
+            } else if (id === 'tab-logs') {
+                refreshLogs();
+            }
         }
 
         async function fetchStatus() {
@@ -1023,17 +1063,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('stat-audio-frames').innerText = `${d.frames_decoded} 帧`;
                 document.getElementById('stat-mem').innerText = `Heap: ${Math.round(d.free_heap/1024)}KB | PSRAM: ${Math.round(d.free_psram/1024/1024)}MB`;
                 
-                const bleInfoRes = await fetch('/api/ble/info');
-                const bleInfo = await bleInfoRes.json();
-                if (bleInfo.connected) {
-                    document.getElementById('stat-ble-state').innerText = '已连接';
-                    document.getElementById('stat-ble-state').style.color = 'var(--accent-green)';
-                    document.getElementById('stat-ble-name').innerText = bleInfo.name || '小米蓝牙语音遥控器';
-                } else {
-                    document.getElementById('stat-ble-state').innerText = '扫描重连中...';
-                    document.getElementById('stat-ble-state').style.color = 'var(--accent-orange)';
-                    document.getElementById('stat-ble-name').innerText = bleInfo.bound_mac ? `已绑定: ${bleInfo.bound_mac}` : '未绑定遥控器';
-                }
+                await refreshBleInfo();
 
                 const apStatEl = document.getElementById('stat-ap-status');
                 if (apStatEl && d.ap_ip) {
@@ -2011,31 +2041,158 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             showToast('已恢复出厂默认层级映射');
         }
 
+        async function refreshBleInfo() {
+            try {
+                const res = await fetch('/api/ble/info');
+                const d = await res.json();
+                
+                // Update top/side status
+                const statBleState = document.getElementById('stat-ble-state');
+                const statBleName = document.getElementById('stat-ble-name');
+                if (statBleState && statBleName) {
+                    if (d.connected) {
+                        statBleState.innerText = '已连接';
+                        statBleState.style.color = 'var(--accent-green)';
+                        statBleName.innerText = d.name || '小米蓝牙语音遥控器';
+                    } else {
+                        statBleState.innerText = '扫描重连中...';
+                        statBleState.style.color = 'var(--accent-orange)';
+                        statBleName.innerText = (d.bound_mac && d.bound_mac.length > 0) ? `已绑定: ${d.bound_mac}` : '未绑定遥控器';
+                    }
+                }
+
+                // Update Bluetooth Tab details
+                const connStateEl = document.getElementById('ble-detail-conn-state');
+                const connDevEl = document.getElementById('ble-detail-conn-device');
+                const boundInfoEl = document.getElementById('ble-detail-bound-info');
+                const boundMacEl = document.getElementById('ble-detail-bound-mac');
+                if (connStateEl) {
+                    if (d.connected) {
+                        connStateEl.innerText = '已建立物理连接 (在线)';
+                        connStateEl.style.color = 'var(--accent-green)';
+                        connDevEl.innerText = `${d.name || '小米蓝牙语音遥控器'} (${d.mac})`;
+                    } else {
+                        connStateEl.innerText = '未连接 (等待遥控器唤醒广播)';
+                        connStateEl.style.color = 'var(--accent-orange)';
+                        connDevEl.innerText = '无活动物理连接';
+                    }
+                }
+                if (boundInfoEl) {
+                    if (d.bound_mac && d.bound_mac.length > 0) {
+                        boundInfoEl.innerText = d.bound_name || '已绑定遥控器';
+                        boundInfoEl.style.color = 'var(--accent-cyan)';
+                        boundMacEl.innerText = `MAC: ${d.bound_mac} (已固化，仅响应此遥控器)`;
+                    } else {
+                        boundInfoEl.innerText = '未绑定任何遥控器';
+                        boundInfoEl.style.color = 'var(--text-muted)';
+                        boundMacEl.innerText = '自由配对模式：按下遥控器组合键将自动配对并绑定';
+                    }
+                }
+            } catch (e) {}
+        }
+
+        async function unpairBleDevice() {
+            if (!confirm('确定要清空已保存的蓝牙遥控器配对信息吗？\n\n清空后将解除与当前遥控器的专属绑定，ESP32 将恢复为自由配对模式，允许重新配对任意小米遥控器。')) return;
+            try {
+                const res = await fetch('/api/ble/unpair', { method: 'POST' });
+                const d = await res.json();
+                showToast('蓝牙配对信息已成功清空，已恢复自由配对状态！');
+                await refreshBleInfo();
+                refreshLogs();
+            } catch (e) {
+                showToast('清空配对信息失败: ' + e);
+            }
+        }
+
+        async function reconnectBle() {
+            try {
+                await fetch('/api/ble/reconnect', { method: 'POST' });
+                showToast('已触发重新扫描与连接');
+                await refreshBleInfo();
+                refreshLogs();
+            } catch (e) {
+                showToast('操作失败: ' + e);
+            }
+        }
+
         async function scanBleDevices() {
             const container = document.getElementById('ble-dev-list');
-            container.innerHTML = '正在扫描周围蓝牙设备 (4秒)...';
+            const scanBtn = document.getElementById('btn-ble-scan');
+            if (scanBtn) {
+                scanBtn.disabled = true;
+                scanBtn.innerText = '正在扫描...';
+            }
+            container.innerHTML = '<div style="color:var(--text-muted);">正在检索周围蓝牙广播信号...</div>';
             try {
                 const res = await fetch('/api/ble/scan');
                 const d = await res.json();
                 if (!d.devices || d.devices.length === 0) {
-                    container.innerHTML = '<div style="color:var(--text-muted);">未发现附近设备，请确保遥控器处于配对广播状态。</div>';
+                    container.innerHTML = '<div style="color:var(--text-muted); padding:12px; background:#090d16; border-radius:8px;">未发现附近活跃广播的蓝牙设备。<br><small style="color:var(--text-muted); margin-top:4px; display:block;">提示：遥控器休眠时不会发送广播，请按住遥控器「主页键 + 菜单键」或按任意键唤醒广播后重新点击扫描。</small></div>';
                     return;
                 }
+
+                // Get current bound mac
+                let curBoundMac = '';
+                try {
+                    const infoRes = await fetch('/api/ble/info');
+                    const infoData = await infoRes.json();
+                    curBoundMac = (infoData.bound_mac || '').toLowerCase();
+                } catch(e) {}
+
                 let html = '<div style="display:grid; gap:10px;">';
                 d.devices.forEach(dev => {
-                    html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#0b0f17; padding:12px; border-radius:8px; border:1px solid #243247;">
-                        <div><b>${dev.name}</b> <span style="font-size:12px; color:var(--text-muted); font-family:monospace;">(${dev.mac}) RSSI: ${dev.rssi}dBm</span></div>
-                        <button class="btn" style="padding:6px 14px; font-size:12px;" onclick="connectMac('${dev.mac}')">连接</button>
+                    const isBound = curBoundMac.length > 0 && dev.mac.toLowerCase() === curBoundMac;
+                    const safeName = (dev.name || 'Unnamed BLE Device').replace(/'/g, "\\'").replace(/"/g, "&quot;");
+                    html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#0b0f17; padding:12px; border-radius:8px; border:1px solid ${isBound ? 'var(--accent-cyan)' : '#243247'};">
+                        <div>
+                            <b>${dev.name}</b> ${isBound ? '<span class="badge" style="background:rgba(6,182,212,0.2); color:var(--accent-cyan); margin-left:6px;">当前绑定</span>' : ''}
+                            <div style="font-size:12px; color:var(--text-muted); font-family:monospace; margin-top:2px;">
+                                ${dev.mac} | RSSI: ${dev.rssi}dBm | 类型: ${dev.type === 0 ? 'Public' : 'Random'}
+                            </div>
+                        </div>
+                        <button class="btn ${isBound ? 'btn-outline' : ''}" style="padding:6px 14px; font-size:12px;" onclick="connectMac('${dev.mac}', '${safeName}', ${dev.type}, this)">${isBound ? '重新连接' : '连接并绑定'}</button>
                     </div>`;
                 });
                 html += '</div>';
                 container.innerHTML = html;
-            } catch(e){ container.innerText = '扫描出错: ' + e; }
+            } catch(e) {
+                container.innerText = '扫描出错: ' + e;
+            } finally {
+                if (scanBtn) {
+                    scanBtn.disabled = false;
+                    scanBtn.innerText = '扫描蓝牙设备';
+                }
+            }
         }
 
-        async function connectMac(mac) {
-            const res = await fetch('/api/ble/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mac }) });
-            alert('正在连接目标蓝牙遥控器，请查看运行日志...');
+        async function connectMac(mac, name, type, btnEl) {
+            if (btnEl) {
+                btnEl.disabled = true;
+                btnEl.innerText = '正在连接...';
+            }
+            showToast(`正在发起连接至 ${name || mac}...`);
+            try {
+                const res = await fetch('/api/ble/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mac: mac, name: name, type: type })
+                });
+                const d = await res.json();
+                if (d.status === 'ok') {
+                    showToast(`已成功锁定并下发连接指令！已将【${name || mac}】保存为绑定遥控器。`);
+                } else {
+                    showToast('连接指令下发失败: ' + (d.error || '未知错误'));
+                }
+            } catch (e) {
+                showToast('请求发生错误: ' + e);
+            } finally {
+                setTimeout(refreshBleInfo, 500);
+                setTimeout(refreshLogs, 500);
+                if (btnEl) {
+                    btnEl.disabled = false;
+                    btnEl.innerText = '连接并绑定';
+                }
+            }
         }
 
         async function scanWifiNetworks() {

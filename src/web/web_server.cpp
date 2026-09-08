@@ -145,29 +145,39 @@ static void handle_ble_scan() {
 
 static void handle_ble_connect() {
     if (!s_server.hasArg("plain")) {
+        app_log("WEB", "BLE connect rejected: missing POST body");
         s_server.send(400, "application/json", "{\"error\":\"missing_body\"}");
         return;
     }
     JsonDocument doc;
     DeserializationError err = deserializeJson(doc, s_server.arg("plain"));
     if (err) {
+        app_log("WEB", "BLE connect rejected: invalid JSON payload");
         s_server.send(400, "application/json", "{\"error\":\"invalid_json\"}");
         return;
     }
 
     String mac = doc["mac"] | "";
+    String name = doc["name"] | "";
+    uint8_t type = doc["type"] | 0;
+
     if (mac.length() == 0) {
+        app_log("WEB", "BLE connect rejected: empty MAC address");
         s_server.send(400, "application/json", "{\"error\":\"empty_mac\"}");
         return;
     }
 
-    bool ok = ble_remote_connect_mac(mac);
-    s_server.send(200, "application/json", ok ? "{\"status\":\"connected\"}" : "{\"status\":\"failed\"}");
+    app_log("WEB", "Connecting to BLE target: %s (%s, Type: %d)", 
+            name.length() > 0 ? name.c_str() : "Unknown", mac.c_str(), (int)type);
+
+    bool ok = ble_remote_connect_target(mac, type, name);
+    s_server.send(200, "application/json", ok ? "{\"status\":\"ok\"}" : "{\"status\":\"failed\"}");
 }
 
 static void handle_ble_unpair() {
+    app_log("WEB", "BLE unpair requested via Web API");
     ble_remote_unpair();
-    s_server.send(200, "application/json", "{\"status\":\"unpaired\"}");
+    s_server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 static void handle_ble_info() {

@@ -44,6 +44,11 @@ void ble_remote_trigger_reconnect(void);
 String ble_remote_scan_devices_json(void);
 
 /**
+ * @brief Manually connect and pair to specific BLE device by MAC address, address type, and optional name
+ */
+bool ble_remote_connect_target(const String& mac_str, uint8_t addr_type, const String& dev_name);
+
+/**
  * @brief Manually connect and pair to specific BLE device by MAC address
  */
 bool ble_remote_connect_mac(const String& mac_str);

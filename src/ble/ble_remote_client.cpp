@@ -18,12 +18,26 @@ static NimBLERemoteCharacteristic*     s_char_ctl = nullptr;
 
 static Preferences                     s_ble_prefs;
 static String                          s_bound_mac = "";
+static String                          s_bound_name = "";
 static uint8_t                         s_bound_addr_type = BLE_ADDR_RANDOM;
 static String                          s_connected_name = "";
 static String                          s_connected_mac = "";
 
-// Asynchronous Connect Request state
-static bool                            s_do_connect = false;
+// In-memory discovered BLE device cache (thread-safe, fed by Core 0 continuous scan)
+struct DiscoveredBleDevice {
+    String   name;
+    String   mac;
+    int      rssi;
+    uint8_t  type;
+    uint32_t last_seen_ms;
+};
+static std::vector<DiscoveredBleDevice> s_discovered_devices;
+static portMUX_TYPE                    s_disc_mux = portMUX_INITIALIZER_UNLOCKED;
+
+// Asynchronous Request flags from other tasks (e.g. WebServer on Core 1)
+static volatile bool                   s_req_unpair = false;
+static volatile bool                   s_req_reconnect = false;
+static volatile bool                   s_do_connect = false;
 static NimBLEAdvertisedDevice*         s_pending_adv_device = nullptr;
 static String                          s_pending_mac = "";
 static uint8_t                         s_pending_addr_type = BLE_ADDR_RANDOM;
@@ -193,26 +207,35 @@ static bool is_target_remote(NimBLEAdvertisedDevice* dev) {
     String addr = dev->getAddress().toString().c_str();
     addr.toLowerCase();
 
-    // 1. Exact match with previously bound remote (case-insensitive)
+    // 1. If a remote was previously bound: STRICT EXCLUSIVITY!
+    // ONLY reconnect to this specific bound remote! NEVER connect to stranger devices!
     if (s_bound_mac.length() > 0) {
         String bound = s_bound_mac;
         bound.toLowerCase();
         if (addr.equals(bound)) {
             return true;
         }
+        // If MAC rotated (e.g. RPA) but device name matches our bound remote:
+        if (s_bound_name.length() > 0 && name.length() > 0 && name.equalsIgnoreCase(s_bound_name)) {
+            app_log("BLE", "Bound remote name matched (%s), updating target MAC to %s", name.c_str(), addr.c_str());
+            return true;
+        }
+        // STRICT: If bound, NEVER match any other stranger devices!
+        return false;
     }
 
-    // 2. Name contains Xiaomi / Remote keywords in Chinese & English
+    // 2. Unbound state (initial pairing only):
+    // Name MUST contain explicit Xiaomi / Remote keywords (dropped loose "RC" to avoid false positives)
     if (name.indexOf("小米") >= 0 || name.indexOf("遥控") >= 0 ||
         name.indexOf("MI RC") >= 0 || name.indexOf("Xiaomi") >= 0 ||
-        name.indexOf("Remote") >= 0 || name.indexOf("RC") >= 0) {
+        name.indexOf("Remote") >= 0) {
         return true;
     }
 
-    // 3. Service UUID matches ATVV or HID
+    // 3. Service UUID matches proprietary ATVV (0xab5e0001)
+    // (Note: Generic 0x1812 HID is explicitly removed to prevent hijacking neighbor devices!)
     if (dev->haveServiceUUID()) {
-        if (dev->isAdvertisingService(NimBLEUUID(ATVV_SVC_UUID)) ||
-            dev->isAdvertisingService(NimBLEUUID((uint16_t)HOGP_SVC_UUID))) {
+        if (dev->isAdvertisingService(NimBLEUUID(ATVV_SVC_UUID))) {
             return true;
         }
     }
@@ -233,6 +256,43 @@ class AdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice* advertisedDevice) override {
         String name = advertisedDevice->getName().c_str();
         String addr = advertisedDevice->getAddress().toString().c_str();
+        uint32_t now = millis();
+
+        // Update in-memory discovered BLE devices cache for WebUI (thread-safe, non-blocking)
+        portENTER_CRITICAL(&s_disc_mux);
+        bool found = false;
+        for (auto& item : s_discovered_devices) {
+            if (item.mac.equalsIgnoreCase(addr)) {
+                if (name.length() > 0) item.name = name;
+                item.rssi = advertisedDevice->getRSSI();
+                item.type = (uint8_t)advertisedDevice->getAddress().getType();
+                item.last_seen_ms = now;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            if (s_discovered_devices.size() >= 30) {
+                s_discovered_devices.erase(s_discovered_devices.begin());
+            }
+            DiscoveredBleDevice d;
+            d.name = (name.length() > 0) ? name : "Unnamed BLE Device";
+            d.mac = addr;
+            d.rssi = advertisedDevice->getRSSI();
+            d.type = (uint8_t)advertisedDevice->getAddress().getType();
+            d.last_seen_ms = now;
+            s_discovered_devices.push_back(d);
+        }
+
+        // Purge devices not seen for over 20 seconds
+        for (auto it = s_discovered_devices.begin(); it != s_discovered_devices.end(); ) {
+            if (now - it->last_seen_ms > 20000) {
+                it = s_discovered_devices.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        portEXIT_CRITICAL(&s_disc_mux);
 
         if (name.length() > 0) {
             app_log("BLE_SCAN", "Device: %s (%s, RSSI: %d, Type: %d)", 
@@ -255,11 +315,12 @@ class ClientCallbacks : public NimBLEClientCallbacks {
     void onConnect(NimBLEClient* pClient) override {
         app_log("BLE", "Remote GATT Connected!");
         s_ble_state = BLE_STATE_CONNECTING;
-        pClient->secureConnection();
+        // NOTE: Do NOT call secureConnection() here. It blocks the NimBLE host task thread.
     }
 
     void onDisconnect(NimBLEClient* pClient) override {
-        app_log("BLE", "Remote Disconnected");
+        int err = pClient ? pClient->getLastError() : 0;
+        app_log("BLE", "Remote Disconnected (lastErr: %d, %s)", err, NimBLEUtils::returnCodeToString(err));
         s_ble_state = BLE_STATE_DISCONNECTED;
         s_do_connect = false;
         s_char_cmd = nullptr;
@@ -271,7 +332,8 @@ class ClientCallbacks : public NimBLEClientCallbacks {
         usb_hid_consumer_release();
         audio_pipeline_stop_session(&g_audio_pipeline);
         led_indicator_set(LED_STATE_WAIT_CONNECTION);
-        start_scan();
+        // NOTE: Do NOT call start_scan() directly inside GAP disconnect callback.
+        // ble_remote_task() on Core 0 automatically restarts scanning on the next tick.
     }
 
     bool onConnParamsUpdateRequest(NimBLEClient* pClient, const ble_gap_upd_params* params) override {
@@ -305,14 +367,16 @@ static void start_scan() {
 static bool setup_services_and_handshake() {
     if (!s_client || !s_client->isConnected()) return false;
 
-    // 1. Security & Bonding
-    s_client->secureConnection();
+    // 1. Security & Bonding (executed safely on Core 0 task context)
+    app_log("BLE_SEC", "Initiating secure connection / bonding...");
+    if (!s_client->secureConnection()) {
+        app_log("BLE_SEC", "secureConnection returned %d, continuing service discovery...", s_client->getLastError());
+    } else {
+        app_log("BLE_SEC", "secureConnection established successfully");
+    }
+    vTaskDelay(pdMS_TO_TICKS(50));
 
-    // 2. Fast connection parameters (15ms interval)
-    s_client->setDataLen(251);
-    s_client->updateConnParams(12, 12, 0, 400);
-
-    // 3. Discover services
+    // 2. Discover services
     std::vector<NimBLERemoteService*>* pServices = s_client->getServices(true);
     if (!pServices) {
         app_log("BLE", "No GATT services found");
@@ -395,6 +459,10 @@ static bool setup_services_and_handshake() {
 
     app_log("BLE", "Total Subscribed Characteristic(s): %d", sub_count);
 
+    // 3. Negotiate data length and connection parameters
+    s_client->setDataLen(251);
+    s_client->updateConnParams(12, 12, 0, 400);
+
     // 4. ATVV Handshake
     if (s_char_cmd) {
         uint8_t cmd_caps[] = { 0x0A, 0x01, 0x00, 0x00, 0x03, 0x03 };
@@ -418,9 +486,11 @@ static bool do_connect_adv_device(NimBLEAdvertisedDevice* advDevice) {
     if (s_client == nullptr) {
         s_client = NimBLEDevice::createClient();
         s_client->setClientCallbacks(new ClientCallbacks(), false);
+        s_client->setConnectTimeout(4);
     } else if (s_client->isConnected()) {
         s_client->disconnect();
     }
+    s_client->setConnectTimeout(4);
 
     app_log("BLE", "Connecting to Advertised Device: %s (%s, Type: %d)...", 
             advDevice->getName().c_str(), advDevice->getAddress().toString().c_str(), 
@@ -436,14 +506,20 @@ static bool do_connect_adv_device(NimBLEAdvertisedDevice* advDevice) {
     s_connected_name = advDevice->getName().c_str();
     s_connected_mac = advDevice->getAddress().toString().c_str();
     s_bound_addr_type = advDevice->getAddress().getType();
-    if (s_connected_name.length() == 0) s_connected_name = "Xiaomi Voice Remote";
+    if (s_connected_name.length() == 0) {
+        s_connected_name = (s_bound_name.length() > 0) ? s_bound_name : "Xiaomi Voice Remote";
+    }
 
-    // Save bound MAC to NVS
-    s_bound_mac = s_connected_mac;
-    s_ble_prefs.putString("bound_mac", s_bound_mac);
-    s_ble_prefs.putString("bound_name", s_connected_name);
-    s_ble_prefs.putUChar("bound_type", s_bound_addr_type);
-    app_log("BLE", "Bound and saved remote: %s (%s, Type: %d)", s_connected_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
+    // Save bound MAC to NVS:
+    // Only update NVS if not previously bound, or if reconnecting to our bound remote whose MAC rotated
+    if (s_bound_mac.length() == 0 || !s_bound_mac.equalsIgnoreCase(s_connected_mac)) {
+        s_bound_mac = s_connected_mac;
+        s_bound_name = s_connected_name;
+        s_ble_prefs.putString("bound_mac", s_bound_mac);
+        s_ble_prefs.putString("bound_name", s_bound_name);
+        s_ble_prefs.putUChar("bound_type", s_bound_addr_type);
+        app_log("BLE", "Bound and saved remote: %s (%s, Type: %d)", s_bound_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
+    }
 
     return setup_services_and_handshake();
 }
@@ -455,9 +531,11 @@ static bool do_connect_mac(const String& mac_str, uint8_t addr_type) {
     if (s_client == nullptr) {
         s_client = NimBLEDevice::createClient();
         s_client->setClientCallbacks(new ClientCallbacks(), false);
+        s_client->setConnectTimeout(4);
     } else if (s_client->isConnected()) {
         s_client->disconnect();
     }
+    s_client->setConnectTimeout(4);
 
     // Try primary addr_type
     NimBLEAddress addr1(mac_str.c_str(), addr_type);
@@ -474,7 +552,7 @@ static bool do_connect_mac(const String& mac_str, uint8_t addr_type) {
     }
 
     if (!ok) {
-        app_log("BLE", "Direct connection to %s failed on both address types", mac_str.c_str());
+        app_log("BLE", "Direct link to %s timed out. Background scanner active, awaiting remote broadcast...", mac_str.c_str());
         s_ble_state = BLE_STATE_DISCONNECTED;
         start_scan();
         return false;
@@ -482,12 +560,22 @@ static bool do_connect_mac(const String& mac_str, uint8_t addr_type) {
 
     s_connected_mac = mac_str;
     s_connected_name = "Xiaomi Voice Remote";
+    portENTER_CRITICAL(&s_disc_mux);
+    for (const auto& d : s_discovered_devices) {
+        if (d.mac.equalsIgnoreCase(mac_str) && d.name.length() > 0 && d.name != "Unnamed BLE Device") {
+            s_connected_name = d.name;
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_disc_mux);
+
     s_bound_mac = s_connected_mac;
+    s_bound_name = s_connected_name;
     s_bound_addr_type = addr_type;
     s_ble_prefs.putString("bound_mac", s_bound_mac);
-    s_ble_prefs.putString("bound_name", s_connected_name);
+    s_ble_prefs.putString("bound_name", s_bound_name);
     s_ble_prefs.putUChar("bound_type", s_bound_addr_type);
-    app_log("BLE", "Manually paired and saved: %s (%s, Type: %d)", s_connected_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
+    app_log("BLE", "Manually paired and saved: %s (%s, Type: %d)", s_bound_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
 
     return setup_services_and_handshake();
 }
@@ -497,16 +585,18 @@ extern "C" {
 void ble_remote_init(void) {
     s_ble_prefs.begin("ble_conf", false);
     s_bound_mac = s_ble_prefs.getString("bound_mac", "");
-    String bound_name = s_ble_prefs.getString("bound_name", "");
+    s_bound_name = s_ble_prefs.getString("bound_name", "");
     s_bound_addr_type = s_ble_prefs.getUChar("bound_type", BLE_ADDR_RANDOM);
 
     if (s_bound_mac.length() > 0) {
-        app_log("BLE", "Loaded previously bound remote: %s (%s, Type: %d)", bound_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
+        app_log("BLE", "Loaded previously bound remote: %s (%s, Type: %d)", s_bound_name.c_str(), s_bound_mac.c_str(), (int)s_bound_addr_type);
     }
 
     NimBLEDevice::init("ESP32-RemoteBridge");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-    NimBLEDevice::setSecurityAuth(BLE_SM_PAIR_AUTHREQ_BOND | BLE_SM_PAIR_AUTHREQ_MITM | BLE_SM_PAIR_AUTHREQ_SC);
+    // Just Works bonding: bonding=true, mitm=false, sc=true
+    // (MITM must be false because BLE_HS_IO_NO_INPUT_OUTPUT cannot support MITM authentication)
+    NimBLEDevice::setSecurityAuth(true, false, true);
     NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
     NimBLEDevice::setSecurityInitKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
     NimBLEDevice::setSecurityRespKey(BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID);
@@ -521,27 +611,56 @@ void ble_remote_init(void) {
 void ble_remote_task(void) {
     uint32_t now = millis();
 
-    // 1. Process asynchronous connection requests from FreeRTOS task
-    if (s_do_connect) {
-        s_do_connect = false;
+    // 1. Process asynchronous unpair / reconnect requests from Core 1
+    if (s_req_unpair || s_req_reconnect) {
+        bool is_unpair = s_req_unpair;
+        s_req_unpair = false;
+        s_req_reconnect = false;
+        if (s_client && s_client->isConnected()) {
+            s_client->disconnect();
+        }
         if (s_pending_adv_device) {
-            do_connect_adv_device(s_pending_adv_device);
             delete s_pending_adv_device;
             s_pending_adv_device = nullptr;
+        }
+        s_pending_mac = "";
+        s_do_connect = false;
+        if (is_unpair) {
+            s_connected_name = "";
+            s_connected_mac = "";
+        }
+        s_ble_state = BLE_STATE_DISCONNECTED;
+        start_scan();
+    }
+
+    // 2. Process asynchronous connection requests from FreeRTOS task
+    if (s_do_connect) {
+        s_do_connect = false;
+        if (s_client && s_client->isConnected()) {
+            s_client->disconnect();
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+        if (s_pending_adv_device) {
+            NimBLEAdvertisedDevice* adv = s_pending_adv_device;
+            s_pending_adv_device = nullptr;
+            do_connect_adv_device(adv);
+            delete adv;
         } else if (s_pending_mac.length() > 0) {
-            do_connect_mac(s_pending_mac, s_pending_addr_type);
+            String mac = s_pending_mac;
+            uint8_t type = s_pending_addr_type;
             s_pending_mac = "";
+            do_connect_mac(mac, type);
         }
     }
 
-    // 2. Auto Re-scan: If not connected, not connecting, and scan is inactive, restart continuous scan
-    if (s_ble_state < BLE_STATE_CONNECTING && !s_do_connect) {
+    // 3. Auto Re-scan: If not connected, not connecting, and scan is inactive, restart continuous scan
+    if (s_ble_state < BLE_STATE_CONNECTING && !s_do_connect && !s_req_unpair && !s_req_reconnect) {
         if (!NimBLEDevice::getScan()->isScanning()) {
             start_scan();
         }
     }
 
-    // 3. Audio silence watchdog (if voice key released packet dropped over BLE)
+    // 4. Audio silence watchdog (if voice key released packet dropped over BLE)
     if (s_ble_state == BLE_STATE_TALKING) {
         if (now - s_last_audio_ms > BLE_SILENCE_WATCHDOG_MS) {
             app_log("ATVV", "Silence watchdog expired -> force stopping speech");
@@ -555,17 +674,6 @@ void ble_remote_task(void) {
             }
         }
     }
-
-    // 4. Periodic keep-alive for remote connection retention
-    if (s_ble_state == BLE_STATE_CONNECTED) {
-        if (now - s_last_keepalive_ms > 5000) {
-            s_last_keepalive_ms = now;
-            if (s_char_cmd != nullptr) {
-                uint8_t ping[] = { 0x0C, 0x00 }; // Re-arm HTT standby
-                s_char_cmd->writeValue(ping, sizeof(ping), false);
-            }
-        }
-    }
 }
 
 ble_remote_state_t ble_remote_get_state(void) {
@@ -573,69 +681,91 @@ ble_remote_state_t ble_remote_get_state(void) {
 }
 
 void ble_remote_trigger_reconnect(void) {
-    if (s_client && s_client->isConnected()) {
-        s_client->disconnect();
-    }
-    s_do_connect = false;
-    start_scan();
+    app_log("BLE", "Triggering BLE reconnection on Core 0...");
+    s_req_reconnect = true;
 }
 
 String ble_remote_scan_devices_json(void) {
-    app_log("BLE", "Performing full 4s BLE scan for nearby devices...");
-    NimBLEScan* pScan = NimBLEDevice::getScan();
-    pScan->stop();
-    NimBLEScanResults results = pScan->start(4, false);
-
     JsonDocument doc;
     JsonArray arr = doc["devices"].to<JsonArray>();
 
-    for (int i = 0; i < results.getCount(); i++) {
-        NimBLEAdvertisedDevice dev = results.getDevice(i);
+    portENTER_CRITICAL(&s_disc_mux);
+    for (const auto& dev : s_discovered_devices) {
         JsonObject obj = arr.add<JsonObject>();
-        String name = dev.getName().c_str();
-        if (name.length() == 0) name = "Unnamed BLE Device";
-        obj["name"] = name;
-        obj["mac"] = dev.getAddress().toString().c_str();
-        obj["rssi"] = dev.getRSSI();
-        obj["type"] = (int)dev.getAddress().getType();
+        obj["name"] = dev.name;
+        obj["mac"] = dev.mac;
+        obj["rssi"] = dev.rssi;
+        obj["type"] = (int)dev.type;
     }
+    portEXIT_CRITICAL(&s_disc_mux);
 
     String out;
     serializeJson(doc, out);
-
-    // Resume continuous background scan if not connected
-    if (s_ble_state < BLE_STATE_CONNECTED && !s_do_connect) {
-        start_scan();
-    }
-
     return out;
 }
 
-bool ble_remote_connect_mac(const String& mac_str) {
+bool ble_remote_connect_target(const String& mac_str, uint8_t addr_type, const String& dev_name) {
     if (mac_str.length() == 0) return false;
+
+    app_log("BLE", "Manual target requested: %s (%s, Type: %d)", 
+            dev_name.length() > 0 ? dev_name.c_str() : "Unknown", 
+            mac_str.c_str(), (int)addr_type);
+
+    // Delete any old bond for this target address so fresh pairing can proceed cleanly
+    NimBLEDevice::deleteBond(NimBLEAddress(mac_str.c_str(), addr_type));
+
+    // Save target as bound remote immediately in memory and NVS
+    s_bound_mac = mac_str;
+    s_bound_name = (dev_name.length() > 0 && dev_name != "Unnamed BLE Device") ? dev_name : "Xiaomi Voice Remote";
+    s_bound_addr_type = addr_type;
+    s_ble_prefs.putString("bound_mac", s_bound_mac);
+    s_ble_prefs.putString("bound_name", s_bound_name);
+    s_ble_prefs.putUChar("bound_type", s_bound_addr_type);
+    app_log("BLE", "Bound target saved to NVS: %s (%s)", s_bound_name.c_str(), s_bound_mac.c_str());
+
+    // Queue connection to be handled safely on Core 0
     s_pending_mac = mac_str;
-    s_pending_addr_type = BLE_ADDR_RANDOM;
+    s_pending_addr_type = addr_type;
     s_do_connect = true;
     return true;
 }
 
+bool ble_remote_connect_mac(const String& mac_str) {
+    uint8_t addr_type = BLE_ADDR_PUBLIC;
+    String dev_name = "Xiaomi Voice Remote";
+    portENTER_CRITICAL(&s_disc_mux);
+    for (const auto& d : s_discovered_devices) {
+        if (d.mac.equalsIgnoreCase(mac_str)) {
+            addr_type = d.type;
+            if (d.name.length() > 0 && d.name != "Unnamed BLE Device") {
+                dev_name = d.name;
+            }
+            break;
+        }
+    }
+    portEXIT_CRITICAL(&s_disc_mux);
+    return ble_remote_connect_target(mac_str, addr_type, dev_name);
+}
+
 void ble_remote_unpair(void) {
     s_bound_mac = "";
-    s_connected_name = "";
-    s_connected_mac = "";
+    s_bound_name = "";
     s_ble_prefs.remove("bound_mac");
     s_ble_prefs.remove("bound_name");
     s_ble_prefs.remove("bound_type");
-    app_log("BLE", "Unpaired and cleared saved remote MAC");
-    ble_remote_trigger_reconnect();
+    NimBLEDevice::deleteAllBonds();
+    app_log("BLE", "Unpaired: deleted all NimBLE bonds and cleared saved MAC from NVS");
+    s_req_unpair = true;
 }
 
 String ble_remote_get_connected_info(void) {
     JsonDocument doc;
     doc["connected"] = (s_ble_state >= BLE_STATE_CONNECTED);
+    doc["state"] = (int)s_ble_state;
     doc["name"] = s_connected_name;
     doc["mac"] = s_connected_mac;
     doc["bound_mac"] = s_bound_mac;
+    doc["bound_name"] = s_bound_name;
     String out;
     serializeJson(doc, out);
     return out;

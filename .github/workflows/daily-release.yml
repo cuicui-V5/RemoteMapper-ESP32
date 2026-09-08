@@ -1,0 +1,130 @@
+name: Daily Release Flasher
+
+on:
+  schedule:
+    # 每天北京时间凌晨 04:00 (UTC 20:00) 自动触发构建与发布
+    - cron: '0 20 * * *'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: '发布的目标 Release Tag 名称 (默认为 release)'
+        required: true
+        default: 'release'
+        type: string
+      rebuild_firmware:
+        description: '是否重新全量编译最新固件 (若为 false 则直接打包仓库现有固件)'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build & Package Flasher
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 检出仓库代码 (Checkout Repository)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 配置 Python 环境 (Setup Python)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安装打包与固件生成工具 (Install Dependencies)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y p7zip-full zip dos2unix
+          pip install platformio esptool
+
+      - name: 缓存 PlatformIO 依赖库与工具链 (Cache PlatformIO)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            .pio
+          key: ${{ runner.os }}-pio-${{ hashFiles('**/platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-pio-
+
+      - name: 编译 ESP32-S3 全型号固件 (Build All Targets)
+        if: ${{ github.event_name == 'schedule' || inputs.rebuild_firmware == true }}
+        run: |
+          echo "=== 正在全量编译 ESP32-S3 固件 (N16R8, N8R2, N4R2) ==="
+          python -m platformio run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
+
+          echo "=== 合并固件二进制并同步至 RemoteMapper-Flasher/bin ==="
+          mkdir -p RemoteMapper-Flasher/bin
+
+          # N16R8 (16MB Flash / 8MB Octal PSRAM)
+          python -m esptool --chip esp32s3 merge_bin -o "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N16R8_full.bin" \
+            --flash_mode keep --flash_freq keep --flash_size keep 0x0 \
+            ".pio/build/esp32s3_n16r8/bootloader.bin" 0x8000 ".pio/build/esp32s3_n16r8/partitions.bin" \
+            0xe000 "tools/boot_app0.bin" 0x10000 ".pio/build/esp32s3_n16r8/firmware.bin"
+          cp ".pio/build/esp32s3_n16r8/firmware.bin" "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N16R8_app.bin"
+
+          # N8R2 (8MB Flash / 2MB Quad PSRAM)
+          python -m esptool --chip esp32s3 merge_bin -o "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N8R2_full.bin" \
+            --flash_mode keep --flash_freq keep --flash_size keep 0x0 \
+            ".pio/build/esp32s3_n8r2/bootloader.bin" 0x8000 ".pio/build/esp32s3_n8r2/partitions.bin" \
+            0xe000 "tools/boot_app0.bin" 0x10000 ".pio/build/esp32s3_n8r2/firmware.bin"
+          cp ".pio/build/esp32s3_n8r2/firmware.bin" "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N8R2_app.bin"
+
+          # N4R2 (4MB Flash / 2MB Quad PSRAM)
+          python -m esptool --chip esp32s3 merge_bin -o "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N4R2_full.bin" \
+            --flash_mode keep --flash_freq keep --flash_size keep 0x0 \
+            ".pio/build/esp32s3_n4r2/bootloader.bin" 0x8000 ".pio/build/esp32s3_n4r2/partitions.bin" \
+            0xe000 "tools/boot_app0.bin" 0x10000 ".pio/build/esp32s3_n4r2/firmware.bin"
+          cp ".pio/build/esp32s3_n4r2/firmware.bin" "RemoteMapper-Flasher/bin/RemoteMapper_ESP32S3_N4R2_app.bin"
+
+          echo "=== 固件构建与同步完成 ==="
+          ls -lh RemoteMapper-Flasher/bin/
+
+      - name: 确保 Windows 脚本换行符为 CRLF (Ensure CRLF Line Endings)
+        run: |
+          find RemoteMapper-Flasher -type f \( -name "*.bat" -o -name "*.txt" -o -name "*.ps1" \) -exec unix2dos {} +
+
+      - name: 压缩打包 RemoteMapper-Flasher (Create 7z and ZIP Archives)
+        run: |
+          echo "=== 正在生成 RemoteMapper-Flasher.7z 高压缩比文件 ==="
+          7z a -t7z -mx=9 "RemoteMapper-Flasher.7z" "./RemoteMapper-Flasher"
+
+          echo "=== 正在生成 RemoteMapper-Flasher.zip 免装软件直接解压文件 ==="
+          zip -r -9 "RemoteMapper-Flasher.zip" "./RemoteMapper-Flasher"
+
+          ls -lh RemoteMapper-Flasher.7z RemoteMapper-Flasher.zip
+
+      - name: 同步发布至 GitHub Release 并替换附件 (Update Release Assets)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ inputs.tag_name || 'release' }}
+        run: |
+          echo "=== 正在检查 Release Tag: $TAG_NAME ==="
+
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release '$TAG_NAME' 已存在，开始清理旧资产文件（原始描述保持不变）..."
+            
+            # 读取当前 Release 下的所有附件文件名并删除
+            gh release view "$TAG_NAME" --json assets -q '.assets[].name' | while read -r asset_name; do
+              if [ -n "$asset_name" ]; then
+                echo "-> 正在删除旧文件: $asset_name"
+                gh release delete-asset "$TAG_NAME" "$asset_name" -y
+              fi
+            done
+
+            echo "-> 正在上传最新打包的文件..."
+            gh release upload "$TAG_NAME" RemoteMapper-Flasher.7z RemoteMapper-Flasher.zip
+            echo "=== Release 文件替换完成！已有描述完好无损 ==="
+          else
+            echo "Release '$TAG_NAME' 不存在，正在创建全新 Release 并上传文件..."
+            gh release create "$TAG_NAME" RemoteMapper-Flasher.7z RemoteMapper-Flasher.zip \
+              --title "免环境一键刷机包 V1.0.0" \
+              --notes "RemoteMapper-ESP32 每日最新自动构建免环境刷机包。"
+            echo "=== 全新 Release 创建完成！==="
+          fi
