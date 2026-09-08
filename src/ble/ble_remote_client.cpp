@@ -655,15 +655,6 @@ void ble_remote_task(void) {
             start_scan();
         }
     }
-
-    // 4. Audio silence watchdog (if voice key released packet dropped over BLE)
-    if (s_ble_state == BLE_STATE_TALKING) {
-        if (now - s_last_audio_ms > BLE_SILENCE_WATCHDOG_MS) {
-            app_log("ATVV", "Silence watchdog expired -> force stopping speech");
-            s_ble_state = BLE_STATE_CONNECTED;
-            key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, now);
-        }
-    }
 }
 
 ble_remote_state_t ble_remote_get_state(void) {

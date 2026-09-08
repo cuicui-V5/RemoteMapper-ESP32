@@ -34,7 +34,6 @@ extern "C" {
 #define BLE_REMOTE_MAC_PREFIX     "c0:5d:39"
 #define BLE_SCAN_INTERVAL_MS      100
 #define BLE_SCAN_WINDOW_MS        80
-#define BLE_SILENCE_WATCHDOG_MS   450       // Voice key release watchdog timeout (ms)
 #define BLE_KEEP_ALIVE_INTERVAL   2000      // MIC_EXTEND interval during active voice (ms)
 
 // ATVV GATT UUIDs (128-bit)

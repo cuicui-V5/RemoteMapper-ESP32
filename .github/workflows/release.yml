@@ -1,9 +1,9 @@
-name: Daily Release Flasher
+name: Release Flasher
 
 on:
-  schedule:
-    # 每天北京时间凌晨 04:00 (UTC 20:00) 自动触发
-    - cron: '0 20 * * *'
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       tag_name:
@@ -43,7 +43,7 @@ jobs:
       - name: 同步发布至 GitHub Release 并替换附件 (Update Release Assets)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: ${{ inputs.tag_name || 'release' }}
+          TAG_NAME: ${{ github.event.inputs.tag_name || 'release' }}
         run: |
           echo "=== 目标 Release Tag: $TAG_NAME ==="
 
@@ -66,6 +66,6 @@ jobs:
             echo "Release '$TAG_NAME' 不存在，正在创建全新 Release 并上传文件..."
             gh release create "$TAG_NAME" RemoteMapper-Flasher.7z RemoteMapper-Flasher.zip \
               --title "免环境一键刷机包 V1.0.0" \
-              --notes "RemoteMapper-ESP32 每日最新自动构建免环境刷机包。"
+              --notes "RemoteMapper-ESP32 最新构建免环境刷机包。"
             echo "=== 全新 Release 创建完成！==="
           fi
