@@ -81,15 +81,14 @@ static void on_ctl_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, siz
     }
     // AUDIO_STOP / MIC_CLOSED / release op (0x00 or 0x08):
     else if (op == 0x00 || op == 0x08) {
-        s_ble_state = BLE_STATE_CONNECTED;
-        key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, millis());
-        app_log("ATVV", "<<< Voice button RELEASED (op=0x%02X)", op);
-
-        // Re-arm remote HTT standby
-        if (s_char_cmd != nullptr) {
-            uint8_t cmd_open[] = { 0x0C, 0x00 };
-            s_char_cmd->writeValue(cmd_open, sizeof(cmd_open), false);
+        if (s_ble_state == BLE_STATE_TALKING) {
+            s_ble_state = BLE_STATE_CONNECTED;
+            key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, millis());
+            app_log("ATVV", "<<< Voice button RELEASED (op=0x%02X)", op);
+        } else {
+            app_log("ATVV", "Microphone inactive / standby (op=0x%02X)", op);
         }
+        // NOTE: Do NOT send cmd_open (MIC_OPEN) here. Keep microphone off so the remote can sleep.
     }
     // CAPS_RESP: op == 0x0B
     else if (op == 0x0B && length >= 7) {
@@ -463,14 +462,11 @@ static bool setup_services_and_handshake() {
     s_client->setDataLen(251);
     s_client->updateConnParams(12, 12, 0, 400);
 
-    // 4. ATVV Handshake
+    // 4. ATVV Handshake: query CAPS capability only. Do NOT force mic open at boot.
     if (s_char_cmd) {
         uint8_t cmd_caps[] = { 0x0A, 0x01, 0x00, 0x00, 0x03, 0x03 };
         s_char_cmd->writeValue(cmd_caps, sizeof(cmd_caps), false);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        uint8_t cmd_open[] = { 0x0C, 0x00 };
-        s_char_cmd->writeValue(cmd_open, sizeof(cmd_open), false);
-        app_log("ATVV", "Handshake completed (MIC_OPEN active)");
+        app_log("ATVV", "Handshake: GET_CAPS query sent (Mic remains in low-power standby)");
     }
 
     s_ble_state = BLE_STATE_CONNECTED;
@@ -666,12 +662,6 @@ void ble_remote_task(void) {
             app_log("ATVV", "Silence watchdog expired -> force stopping speech");
             s_ble_state = BLE_STATE_CONNECTED;
             key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, now);
-
-            // Re-arm remote HTT standby
-            if (s_char_cmd != nullptr) {
-                uint8_t cmd_open[] = { 0x0C, 0x00 };
-                s_char_cmd->writeValue(cmd_open, sizeof(cmd_open), false);
-            }
         }
     }
 }
