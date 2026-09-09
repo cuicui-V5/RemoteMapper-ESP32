@@ -32,6 +32,8 @@ void ble_remote_task(void);
  * @brief Get current BLE connection state
  */
 ble_remote_state_t ble_remote_get_state(void);
+/** @brief Whether the connected remote advertised a supported ATVV codec. */
+bool ble_remote_voice_ready(void);
 
 /**
  * @brief Trigger manual reconnect / re-scan

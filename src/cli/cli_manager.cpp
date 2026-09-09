@@ -22,6 +22,7 @@ static void handle_command(const String& line) {
         doc["target"] = HARDWARE_TARGET;
         doc["uptime_sec"] = millis() / 1000;
         doc["ble_state"] = (int)ble_remote_get_state();
+        doc["voice_ready"] = ble_remote_voice_ready();
         doc["frames_decoded"] = g_audio_pipeline.total_frames_decoded;
         doc["samples_pushed"] = g_audio_pipeline.total_samples_pushed;
         doc["free_heap"] = ESP.getFreeHeap();
