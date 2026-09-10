@@ -1,8 +1,15 @@
 #include "app_log.h"
 #include <ArduinoJson.h>
+#include <USBCDC.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+
+#if !ARDUINO_USB_CDC_ON_BOOT
+extern USBCDC USBSerial;
+#endif
+
+static bool s_cdc_log_enabled = false;
 
 #define STATIC_LOG_LINES 250
 #define LOG_LINE_MAX_LEN 160
@@ -36,6 +43,11 @@ void app_log(const char* tag, const char* format, ...) {
     if (Serial) {
         Serial.println(full_line);
     }
+#if !ARDUINO_USB_CDC_ON_BOOT
+    if (s_cdc_log_enabled && USBSerial) {
+        USBSerial.println(full_line);
+    }
+#endif
 
     // 2. Store to circular buffer with spinlock protection
     taskENTER_CRITICAL(&s_log_mux);
@@ -70,4 +82,12 @@ void app_log_clear(void) {
     s_log_head = 0;
     s_log_count = 0;
     taskEXIT_CRITICAL(&s_log_mux);
+}
+
+void app_log_set_cdc_enabled(bool enabled) {
+    s_cdc_log_enabled = enabled;
+}
+
+bool app_log_get_cdc_enabled(void) {
+    return s_cdc_log_enabled;
 }
