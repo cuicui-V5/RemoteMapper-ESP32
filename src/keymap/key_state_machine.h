@@ -20,7 +20,11 @@ typedef enum {
     ACTION_VOICE_HOLD,          // Trigger voice recording + hold hotkey
     ACTION_VOICE_RELEASE,       // End voice recording + release hotkey
     ACTION_SWITCH_LAYER,        // Switch to target layer (auto-toggles to 0 if current == target)
-    ACTION_TRANSPARENT          // Transparent / Inherit from Layer 0
+    ACTION_TRANSPARENT,         // Transparent / Inherit from Layer 0
+    ACTION_WOL,                 // 11: Wake-on-LAN Magic Packet
+    ACTION_ADV_MACRO,           // 12: Future placeholder (Macro Sequence)
+    ACTION_ADV_HTTP,            // 13: Future placeholder (HTTP Webhook)
+    ACTION_ADV_MQTT             // 14: Future placeholder (MQTT Publish)
 } key_action_type_t;
 
 typedef struct {
@@ -29,6 +33,7 @@ typedef struct {
     uint8_t           key_code;     // USB_KEY_*
     uint16_t          consumer_code;// USB_CONSUMER_*
     uint8_t           target_layer; // Target layer (0 ~ 4) for ACTION_SWITCH_LAYER
+    uint8_t           wol_mac[6];   // Target MAC address for ACTION_WOL
 } key_action_t;
 
 typedef struct {

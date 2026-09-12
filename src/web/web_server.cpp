@@ -8,6 +8,7 @@
 #include "keymap/key_state_machine.h"
 #include "keymap/key_config_storage.h"
 #include "nvs/nvs_manager.h"
+#include "wol_manager.h"
 #include <WebServer.h>
 #include <ArduinoJson.h>
 
@@ -25,6 +26,7 @@ static void handle_status() {
     doc["version"] = FIRMWARE_VERSION;
     doc["uptime_sec"] = millis() / 1000;
     doc["ble_state"] = (int)ble_remote_get_state();
+    doc["battery_pct"] = ble_remote_get_battery_pct();
     doc["frames_decoded"] = g_audio_pipeline.total_frames_decoded;
     doc["samples_pushed"] = g_audio_pipeline.total_samples_pushed;
     doc["free_heap"] = ESP.getFreeHeap();
@@ -220,6 +222,40 @@ static void handle_nvs_reset() {
     }
 }
 
+static void handle_wol_test() {
+    String mac = "";
+    uint16_t port = 9;
+
+    if (s_server.hasArg("plain")) {
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, s_server.arg("plain"));
+        if (!err) {
+            if (doc["mac"].is<const char*>()) mac = doc["mac"].as<String>();
+            if (doc["port"].is<int>()) port = (uint16_t)doc["port"].as<int>();
+        }
+    }
+    if (mac.length() == 0 && s_server.hasArg("mac")) {
+        mac = s_server.arg("mac");
+    }
+    if (s_server.hasArg("port")) {
+        port = (uint16_t)s_server.arg("port").toInt();
+    }
+    if (port == 0) port = 9;
+
+    mac.trim();
+    if (mac.length() == 0) {
+        s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"缺少 MAC 地址\"}");
+        return;
+    }
+
+    bool ok = wol_manager_send_str(mac.c_str(), port);
+    if (ok) {
+        s_server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"Wake-on-LAN 唤醒魔术包已广播发送\"}");
+    } else {
+        s_server.send(400, "application/json", "{\"status\":\"error\",\"message\":\"发送失败，请检查 MAC 地址格式是否正确 (如 AA:BB:CC:DD:EE:FF)\"}");
+    }
+}
+
 static void handle_captive_portal() {
     String host = s_server.hostHeader();
     if (host != "192.168.4.1" && host != "remotemapper.local") {
@@ -243,6 +279,7 @@ void web_server_init(void) {
     s_server.on("/api/keymap/save", HTTP_POST, handle_keymap_save);
     s_server.on("/api/keymap/reset", HTTP_POST, handle_keymap_reset);
     s_server.on("/api/keymap/telemetry", HTTP_GET, handle_keymap_telemetry);
+    s_server.on("/api/wol/test", HTTP_POST, handle_wol_test);
     s_server.on("/api/ble/scan", HTTP_GET, handle_ble_scan);
     s_server.on("/api/ble/connect", HTTP_POST, handle_ble_connect);
     s_server.on("/api/ble/unpair", HTTP_POST, handle_ble_unpair);

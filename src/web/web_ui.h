@@ -305,7 +305,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             <div class="stat-card">
                 <div class="stat-title">蓝牙遥控器连接状态</div>
                 <div class="stat-val" id="stat-ble-state" style="color: var(--accent-green);">已连接</div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="stat-ble-name">小米蓝牙语音遥控器</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="stat-ble-name" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 130px;">小米蓝牙语音遥控器</span>
+                    <span id="stat-ble-bat" style="font-weight: 600; color: var(--accent-green);">--</span>
+                </div>
             </div>
             <div class="stat-card">
                 <div class="stat-title">Wi-Fi 局域网 IP</div>
@@ -502,11 +505,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <button class="btn btn-danger" style="font-size: 12px;" onclick="unpairBleDevice()">清空蓝牙配对信息</button>
                     </div>
                 </div>
-                <div class="grid-2" style="margin-top: 14px;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 14px; margin-top: 14px;">
                     <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px;">
                         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">实时物理连接</div>
                         <div id="ble-detail-conn-state" style="font-size: 16px; font-weight: bold; color: var(--text-muted);">正在获取...</div>
                         <div id="ble-detail-conn-device" style="font-size: 13px; color: var(--text-muted); margin-top: 4px; font-family: monospace;">-</div>
+                    </div>
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px;">
+                        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">遥控器电池电量</div>
+                        <div id="ble-detail-bat-pct" style="font-size: 16px; font-weight: bold; color: var(--text-muted);">正在获取...</div>
+                        <div id="ble-detail-bat-tip" style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">-</div>
                     </div>
                     <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px;">
                         <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">NVS 固化绑定目标 (专属独占)</div>
@@ -788,6 +796,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">切换层级</div>
                         <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">切换目标层</div>
                     </div>
+                    <div class="mode-card" id="mode-card-11" onclick="selectActionMode(11)">
+                        <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">高级扩展</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">WOL网络唤醒等</div>
+                    </div>
                     <div class="mode-card" id="mode-card-10" onclick="selectActionMode(10)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">穿透继承</div>
                         <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">继承默认层配置</div>
@@ -811,6 +823,60 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <div style="font-size:14px; font-weight:700; color:#93c5fd;">穿透继承模式</div>
                 <div style="font-size:12px; color:var(--text-muted); margin-top:4px;">
                     本层不单独覆盖此按键触发动作，按下时自动穿透继承默认层的对应配置。
+                </div>
+            </div>
+
+            <!-- Advanced Extension Box (Mode 11) -->
+            <div id="adv-action-config-box" style="display:none; background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px; margin-bottom: 18px;">
+                <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:8px; font-weight:600;">高级扩展功能选择</label>
+                
+                <!-- Sub tabs for Advanced Features -->
+                <div style="display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;">
+                    <button type="button" class="tab-btn active" id="adv-tab-wol" onclick="switchAdvSubTab('wol')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                        <span>🌐 局域网唤醒 (WOL)</span>
+                    </button>
+                    <button type="button" class="tab-btn" id="adv-tab-macro" onclick="switchAdvSubTab('macro')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
+                        <span>⌨️ 按键宏序列</span>
+                        <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
+                    </button>
+                    <button type="button" class="tab-btn" id="adv-tab-http" onclick="switchAdvSubTab('http')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
+                        <span>🔗 HTTP Webhook</span>
+                        <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
+                    </button>
+                    <button type="button" class="tab-btn" id="adv-tab-mqtt" onclick="switchAdvSubTab('mqtt')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
+                        <span>📡 MQTT 物联网</span>
+                        <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
+                    </button>
+                </div>
+
+                <!-- WOL Configuration Panel -->
+                <div id="adv-panel-wol" style="display: block;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">目标计算机 MAC 地址</label>
+                        <input type="text" id="adv-wol-mac" placeholder="例如: 34:97:F6:88:99:AA" style="width:100%; padding:9px 12px; background:#151d2a; border:1px solid #243247; color:#fff; border-radius:8px; font-size:13px; font-family:monospace; outline:none;" oninput="onWolMacChange()">
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">支持冒号分隔 (AA:BB:CC...)、减号分隔 (AA-BB-CC...) 或连续 12 位字符。</div>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: flex-end;">
+                        <div style="width: 120px;">
+                            <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">唤醒端口 (UDP)</label>
+                            <input type="number" id="adv-wol-port" value="9" min="1" max="65535" style="width:100%; padding:9px 12px; background:#151d2a; border:1px solid #243247; color:#fff; border-radius:8px; font-size:13px; outline:none;">
+                        </div>
+                        <button type="button" class="tab-btn" onclick="testSendWol()" style="flex: 1; padding: 9px 16px; background: rgba(6, 182, 212, 0.15); border: 1px solid var(--accent-cyan); color: var(--accent-cyan); cursor: pointer; border-radius: 8px; font-weight: 600;">
+                            ⚡ 发送测试唤醒包
+                        </button>
+                    </div>
+                    <div style="margin-top:12px; padding:10px 14px; background:rgba(6,182,212,0.1); border-radius:8px; border:1px dashed rgba(6,182,212,0.3); font-size:12px; color:var(--text-muted); line-height:1.5;">
+                        💡 提示：按下按键时，ESP32 将向目标计算机广播 Wake-on-LAN 唤醒魔术包（Magic Packet）。请确保被唤醒主机的主板 BIOS / 网卡驱动已开启 WOL 唤醒支持。
+                    </div>
+                </div>
+
+                <!-- Placeholder Panels -->
+                <div id="adv-panel-placeholder" style="display: none; text-align: center; padding: 24px 16px; background: #151d2a; border-radius: 8px; border: 1px dashed var(--border-color);">
+                    <div id="adv-placeholder-icon" style="font-size: 28px; margin-bottom: 8px;">🚀</div>
+                    <div id="adv-placeholder-title" style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">功能规划中</div>
+                    <div id="adv-placeholder-desc" style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 0 auto; line-height: 1.6;">
+                        此高级扩展功能已在产品规划路线图中，将在后续固件版本中逐步推送更新！
+                    </div>
                 </div>
             </div>
 
@@ -1160,8 +1226,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             0xC0: { source_vk: 0xC0, has_click: true, click_type: 1, click_mod: 0, click_key: 65, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 }
         };
 
-        function getActionSummaryText(type, mod, key, cons, target_layer) {
+        function getActionSummaryText(type, mod, key, cons, target_layer, mac) {
             if (type === 10) return '[继承默认层]';
+            if (type === 11) return `[WOL唤醒: ${mac || '已配置'}]`;
             if (type === 9) {
                 const tgt = target_layer || 0;
                 let tgtName = tgt === 0 ? '默认层' : `层${tgt}`;
@@ -1412,13 +1479,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const effClickKey = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_key : (b0 ? b0.click_key : 0);
                 const effClickCons = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_cons : (b0 ? b0.click_cons : 0);
                 const effClickLayer = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_layer : (b0 ? b0.click_layer : 0);
+                const effClickMac = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_mac : (b0 ? b0.click_mac : '');
 
                 let desc = `【${KEY_NAMES[vk] || hex}】`;
                 if (currentEditingLayer > 0) {
                     desc += isOverride ? ` (本层覆盖)` : ` (继承默认层)`;
                 }
 
-                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer)}`;
+                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer, effClickMac)}`;
 
                 const hasLong = (bCur && bCur.has_long && bCur.long_type !== 10) ? true : (b0 ? b0.has_long : false);
                 if (hasLong) {
@@ -1428,7 +1496,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const lCons = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_cons : b0.long_cons;
                     const lLayer = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_layer : b0.long_layer;
                     const lMs = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_ms : b0.long_ms;
-                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer)}`;
+                    const lMac = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_mac : b0.long_mac;
+                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer, lMac)}`;
                 }
 
                 const hasDouble = (bCur && bCur.has_double && bCur.double_type !== 10) ? true : (b0 ? b0.has_double : false);
@@ -1439,7 +1508,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const dCons = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_cons : b0.double_cons;
                     const dLayer = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_layer : b0.double_layer;
                     const dMs = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_ms : b0.double_ms;
-                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer)}`;
+                    const dMac = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_mac : b0.double_mac;
+                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer, dMac)}`;
                 }
 
                 el.title = desc;
@@ -1510,6 +1580,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const doubleSlider = document.getElementById('slider-double-ms');
             if (doubleSlider) editingBinding.double_ms = parseInt(doubleSlider.value) || 250;
 
+            const wolMac = (document.getElementById('adv-wol-mac') ? document.getElementById('adv-wol-mac').value : '').trim();
+
             if (currentTriggerTab === 'click') {
                 editingBinding.click_type = mode;
                 if (mode === 9) {
@@ -1519,6 +1591,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 10) {
                     editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
                     editingBinding.has_click = true;
+                } else if (mode === 11) {
+                    editingBinding.click_mac = wolMac;
+                    editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
+                    editingBinding.has_click = (wolMac.length >= 12);
                 } else if (mode === 4) {
                     editingBinding.click_cons = code;
                     editingBinding.click_key = 0; editingBinding.click_mod = 0;
@@ -1536,6 +1612,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
                 } else if (mode === 10) {
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
+                } else if (mode === 11) {
+                    editingBinding.long_mac = wolMac;
+                    editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
                 } else if (mode === 4) {
                     editingBinding.long_cons = code;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0;
@@ -1550,6 +1629,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.double_layer = selectedTargetLayer;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
                 } else if (mode === 10) {
+                    editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
+                } else if (mode === 11) {
+                    editingBinding.double_mac = wolMac;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
                 } else if (mode === 4) {
                     editingBinding.double_cons = code;
@@ -1571,7 +1653,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const doubleHeader = document.getElementById('double-click-header');
             const actionLabel = document.getElementById('action-mode-label');
 
-            let mode = 2, mod = 0, key = 0, cons = 0, target_layer = 1;
+            let mode = 2, mod = 0, key = 0, cons = 0, target_layer = 1, mac = '';
 
             if (tab === 'click') {
                 longHeader.style.display = 'none';
@@ -1582,6 +1664,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 key = editingBinding.click_key || 0;
                 cons = editingBinding.click_cons || 0;
                 target_layer = editingBinding.click_layer !== undefined ? editingBinding.click_layer : (currentEditingLayer === 1 ? 0 : 1);
+                mac = editingBinding.click_mac || '';
             } else if (tab === 'long') {
                 longHeader.style.display = 'block';
                 doubleHeader.style.display = 'none';
@@ -1594,6 +1677,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 key = editingBinding.long_key || 0;
                 cons = editingBinding.long_cons || 0;
                 target_layer = editingBinding.long_layer !== undefined ? editingBinding.long_layer : (currentEditingLayer === 1 ? 0 : 1);
+                mac = editingBinding.long_mac || '';
             } else if (tab === 'double') {
                 longHeader.style.display = 'none';
                 doubleHeader.style.display = 'block';
@@ -1606,7 +1690,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 key = editingBinding.double_key || 0;
                 cons = editingBinding.double_cons || 0;
                 target_layer = editingBinding.double_layer !== undefined ? editingBinding.double_layer : (currentEditingLayer === 1 ? 0 : 1);
+                mac = editingBinding.double_mac || '';
             }
+
+            const macInput = document.getElementById('adv-wol-mac');
+            if (macInput) macInput.value = mac;
 
             selectedTargetLayer = target_layer;
             selectActionMode(mode);
@@ -1632,6 +1720,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const advContainer = document.getElementById('adv-config-container');
             const layerBox = document.getElementById('layer-switch-config-box');
             const transBox = document.getElementById('layer-trans-config-box');
+            const advActionBox = document.getElementById('adv-action-config-box');
 
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
             const card = document.getElementById(`mode-card-${mode}`);
@@ -1642,17 +1731,28 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 if (advContainer) advContainer.style.display = 'none';
                 if (layerBox) layerBox.style.display = 'block';
                 if (transBox) transBox.style.display = 'none';
+                if (advActionBox) advActionBox.style.display = 'none';
                 renderTargetLayerButtons();
             } else if (mode === 10) {
                 if (recorderBox) recorderBox.style.display = 'none';
                 if (advContainer) advContainer.style.display = 'none';
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'block';
+                if (advActionBox) advActionBox.style.display = 'none';
+            } else if (mode === 11) {
+                if (recorderBox) recorderBox.style.display = 'none';
+                if (advContainer) advContainer.style.display = 'none';
+                if (layerBox) layerBox.style.display = 'none';
+                if (transBox) transBox.style.display = 'none';
+                if (advActionBox) advActionBox.style.display = 'block';
+                switchAdvSubTab('wol');
+                renderTriggerView(11, 0, 0, 0);
             } else {
                 if (recorderBox) recorderBox.style.display = 'block';
                 if (advContainer) advContainer.style.display = 'block';
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'none';
+                if (advActionBox) advActionBox.style.display = 'none';
 
                 let curMod = parseInt(document.getElementById('adv-mod').value) || 0;
                 let curCode = parseInt(document.getElementById('adv-code').value) || 0;
@@ -1681,6 +1781,95 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
+        function switchAdvSubTab(sub) {
+            ['wol', 'macro', 'http', 'mqtt'].forEach(t => {
+                const btn = document.getElementById(`adv-tab-${t}`);
+                if (btn) {
+                    if (t === sub) {
+                        btn.classList.add('active');
+                        btn.style.opacity = '1';
+                    } else {
+                        btn.classList.remove('active');
+                        if (t !== 'wol') btn.style.opacity = '0.7';
+                    }
+                }
+            });
+
+            const wolPanel = document.getElementById('adv-panel-wol');
+            const phPanel = document.getElementById('adv-panel-placeholder');
+            const phIcon = document.getElementById('adv-placeholder-icon');
+            const phTitle = document.getElementById('adv-placeholder-title');
+            const phDesc = document.getElementById('adv-placeholder-desc');
+
+            if (sub === 'wol') {
+                if (wolPanel) wolPanel.style.display = 'block';
+                if (phPanel) phPanel.style.display = 'none';
+            } else {
+                if (wolPanel) wolPanel.style.display = 'none';
+                if (phPanel) {
+                    phPanel.style.display = 'block';
+                    if (sub === 'macro') {
+                        phIcon.innerText = '⌨️';
+                        phTitle.innerText = '按键宏序列 (Macro Sequence)';
+                        phDesc.innerText = '支持一键触发多步自定义按键连击与毫秒级延时操作，后续固件推出。';
+                    } else if (sub === 'http') {
+                        phIcon.innerText = '🔗';
+                        phTitle.innerText = 'HTTP Webhook 网络请求';
+                        phDesc.innerText = '支持按键触发向局域网/互联网 REST API 发送 GET/POST 请求，后续固件推出。';
+                    } else if (sub === 'mqtt') {
+                        phIcon.innerText = '📡';
+                        phTitle.innerText = 'MQTT 物联网消息推送';
+                        phDesc.innerText = '支持按键触发向 MQTT Broker 发布指定 Topic 与 Payload，后续固件推出。';
+                    }
+                }
+            }
+        }
+
+        function onWolMacChange() {
+            const mac = (document.getElementById('adv-wol-mac') ? document.getElementById('adv-wol-mac').value : '').trim();
+            if (editingBinding) {
+                if (currentTriggerTab === 'click') {
+                    editingBinding.click_mac = mac;
+                    editingBinding.has_click = (mac.length >= 12);
+                } else if (currentTriggerTab === 'long') {
+                    editingBinding.long_mac = mac;
+                } else if (currentTriggerTab === 'double') {
+                    editingBinding.double_mac = mac;
+                }
+            }
+            renderTriggerView(11, 0, 0, 0);
+        }
+
+        async function testSendWol() {
+            const macInput = document.getElementById('adv-wol-mac');
+            const mac = macInput ? macInput.value.trim() : '';
+            const portInput = document.getElementById('adv-wol-port');
+            const port = portInput ? (parseInt(portInput.value) || 9) : 9;
+
+            if (!mac) {
+                showToast('请先输入目标计算机 MAC 地址', true);
+                if (macInput) macInput.focus();
+                return;
+            }
+
+            showToast('正在发送 WOL 唤醒魔术包...');
+            try {
+                const res = await fetch('/api/wol/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mac: mac, port: port })
+                });
+                const data = await res.json();
+                if (res.ok && data.status === 'ok') {
+                    showToast(data.message || 'WOL 唤醒包已成功广播发送！');
+                } else {
+                    showToast(data.message || 'WOL 发送失败，请检查 MAC 地址格式', true);
+                }
+            } catch (e) {
+                showToast('发送请求失败: ' + e.message, true);
+            }
+        }
+
         function renderTriggerView(type, mod, key, cons) {
             const isVoice = (editingKey === 0x04 || editingKey === 0x3E);
             if (isVoice && currentEditingLayer === 0) {
@@ -1695,6 +1884,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 mod = 0;
                 cons = 0;
             } else if (type === 10) {
+                key = 0;
+                mod = 0;
+                cons = 0;
+            } else if (type === 11) {
                 key = 0;
                 mod = 0;
                 cons = 0;
@@ -1724,6 +1917,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             if (type === 10) {
                 display.innerHTML = `<span class="kbd-chip" style="border-color:#93c5fd; color:#93c5fd;">继承默认层</span>`;
+                return;
+            }
+
+            if (type === 11) {
+                let mac = '';
+                const macInput = document.getElementById('adv-wol-mac');
+                if (macInput && macInput.value) mac = macInput.value.trim();
+                if (!mac && editingBinding) {
+                    if (currentTriggerTab === 'click') mac = editingBinding.click_mac || '';
+                    else if (currentTriggerTab === 'long') mac = editingBinding.long_mac || '';
+                    else if (currentTriggerTab === 'double') mac = editingBinding.double_mac || '';
+                }
+                display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-orange); color:var(--accent-orange);">🌐 WOL 唤醒: ${mac || '未配置MAC'}</span>`;
                 return;
             }
 
@@ -1894,10 +2100,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 selectActionMode(4);
                 renderTriggerView(4, 0, 0, code);
             } else if (prefix === 'm') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, 0, 0);
             } else if (prefix === 'k') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, code, 0);
             }
         }
@@ -1911,7 +2117,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 renderTriggerView(7, mod, code, 0);
             } else if (currentSelectedMode === 4 || code >= 500) {
                 renderTriggerView(4, 0, 0, code);
-            } else if (currentSelectedMode === 9 || currentSelectedMode === 10) {
+            } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) {
                 renderTriggerView(currentSelectedMode, 0, 0, 0);
             } else {
                 renderTriggerView(currentSelectedMode, mod, code, 0);
@@ -1931,8 +2137,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const modal = document.getElementById('remap-modal');
             if (modal.style.display !== 'flex') return;
 
-            // If user is in layer switch or transparent mode, ignore keypresses
-            if (currentSelectedMode === 9 || currentSelectedMode === 10) return;
+            // If user is in layer switch, transparent, or advanced extension mode, ignore keypresses
+            if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) return;
 
             // If user is typing in advanced numeric inputs, let it through
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
@@ -2049,21 +2255,36 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 // Update top/side status
                 const statBleState = document.getElementById('stat-ble-state');
                 const statBleName = document.getElementById('stat-ble-name');
+                const statBleBat = document.getElementById('stat-ble-bat');
                 if (statBleState && statBleName) {
                     if (d.connected) {
                         statBleState.innerText = '已连接';
                         statBleState.style.color = 'var(--accent-green)';
                         statBleName.innerText = d.name || '小米蓝牙语音遥控器';
+                        if (statBleBat) {
+                            if (d.battery_pct !== undefined && d.battery_pct >= 0) {
+                                const isLow = (d.battery_pct <= 15);
+                                statBleBat.innerHTML = `${isLow ? '🪫' : '🔋'} ${d.battery_pct}%`;
+                                statBleBat.style.color = isLow ? '#f87171' : 'var(--accent-green)';
+                                statBleBat.title = isLow ? '低电量警示 (板载LED白闪提醒)' : '电量正常';
+                            } else {
+                                statBleBat.innerText = '🔋 --';
+                                statBleBat.style.color = 'var(--text-muted)';
+                            }
+                        }
                     } else {
                         statBleState.innerText = '扫描重连中...';
                         statBleState.style.color = 'var(--accent-orange)';
                         statBleName.innerText = (d.bound_mac && d.bound_mac.length > 0) ? `已绑定: ${d.bound_mac}` : '未绑定遥控器';
+                        if (statBleBat) statBleBat.innerText = '';
                     }
                 }
 
                 // Update Bluetooth Tab details
                 const connStateEl = document.getElementById('ble-detail-conn-state');
                 const connDevEl = document.getElementById('ble-detail-conn-device');
+                const batPctEl = document.getElementById('ble-detail-bat-pct');
+                const batTipEl = document.getElementById('ble-detail-bat-tip');
                 const boundInfoEl = document.getElementById('ble-detail-bound-info');
                 const boundMacEl = document.getElementById('ble-detail-bound-mac');
                 if (connStateEl) {
@@ -2075,6 +2296,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         connStateEl.innerText = '未连接 (等待遥控器唤醒广播)';
                         connStateEl.style.color = 'var(--accent-orange)';
                         connDevEl.innerText = '无活动物理连接';
+                    }
+                }
+                if (batPctEl && batTipEl) {
+                    if (d.connected) {
+                        if (d.battery_pct !== undefined && d.battery_pct >= 0) {
+                            const isLow = (d.battery_pct <= 15);
+                            batPctEl.innerHTML = `${isLow ? '🪫' : '🔋'} ${d.battery_pct}%`;
+                            batPctEl.style.color = isLow ? '#f87171' : 'var(--accent-green)';
+                            batTipEl.innerText = isLow ? '低电量警告：请及时更换 7 号电池 (板载LED正闪烁白光提示)' : '电池状态良好，供电充足';
+                            batTipEl.style.color = isLow ? '#fca5a5' : 'var(--text-muted)';
+                        } else {
+                            batPctEl.innerText = '读取中...';
+                            batPctEl.style.color = 'var(--text-muted)';
+                            batTipEl.innerText = '等待遥控器响应电量服务特征 (0x2A19)';
+                            batTipEl.style.color = 'var(--text-muted)';
+                        }
+                    } else {
+                        batPctEl.innerText = '未连接';
+                        batPctEl.style.color = 'var(--text-muted)';
+                        batTipEl.innerText = '设备离线时无法读取电量';
+                        batTipEl.style.color = 'var(--text-muted)';
                     }
                 }
                 if (boundInfoEl) {

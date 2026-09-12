@@ -1,5 +1,6 @@
 #include "key_config_storage.h"
 #include "log/app_log.h"
+#include "wol_manager.h"
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
@@ -46,6 +47,11 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                 if (b->click_action.key_code != 0) obj["click_key"] = b->click_action.key_code;
                 if (b->click_action.consumer_code != 0) obj["click_cons"] = b->click_action.consumer_code;
                 if (b->click_action.type == ACTION_SWITCH_LAYER) obj["click_layer"] = b->click_action.target_layer;
+                if (b->click_action.type == ACTION_WOL) {
+                    char mac_buf[20];
+                    wol_manager_mac_to_str(b->click_action.wol_mac, mac_buf, sizeof(mac_buf));
+                    obj["click_mac"] = mac_buf;
+                }
             }
 
             // Long action
@@ -57,6 +63,11 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                 if (b->long_action.key_code != 0) obj["long_key"] = b->long_action.key_code;
                 if (b->long_action.consumer_code != 0) obj["long_cons"] = b->long_action.consumer_code;
                 if (b->long_action.type == ACTION_SWITCH_LAYER) obj["long_layer"] = b->long_action.target_layer;
+                if (b->long_action.type == ACTION_WOL) {
+                    char mac_buf[20];
+                    wol_manager_mac_to_str(b->long_action.wol_mac, mac_buf, sizeof(mac_buf));
+                    obj["long_mac"] = mac_buf;
+                }
             }
 
             // Double action
@@ -68,6 +79,11 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                 if (b->double_action.key_code != 0) obj["double_key"] = b->double_action.key_code;
                 if (b->double_action.consumer_code != 0) obj["double_cons"] = b->double_action.consumer_code;
                 if (b->double_action.type == ACTION_SWITCH_LAYER) obj["double_layer"] = b->double_action.target_layer;
+                if (b->double_action.type == ACTION_WOL) {
+                    char mac_buf[20];
+                    wol_manager_mac_to_str(b->double_action.wol_mac, mac_buf, sizeof(mac_buf));
+                    obj["double_mac"] = mac_buf;
+                }
             }
         }
     }
@@ -110,6 +126,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         b.click_action.key_code = (uint8_t)parse_u32_or_hex(obj["click_key"], 0);
         b.click_action.consumer_code = (uint16_t)parse_u32_or_hex(obj["click_cons"], 0);
         b.click_action.target_layer = (uint8_t)parse_u32_or_hex(obj["click_layer"], 0);
+        if (!obj["click_mac"].isNull()) {
+            wol_manager_parse_mac(obj["click_mac"].as<String>().c_str(), b.click_action.wol_mac);
+        }
 
         // Normalize MI_KEY_VOICE_ALT (0x3E) to MI_KEY_VOICE (0x04)
         if (b.source_vk == MI_KEY_VOICE_ALT) {
@@ -128,6 +147,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         b.long_action.key_code = (uint8_t)parse_u32_or_hex(obj["long_key"], 0);
         b.long_action.consumer_code = (uint16_t)parse_u32_or_hex(obj["long_cons"], 0);
         b.long_action.target_layer = (uint8_t)parse_u32_or_hex(obj["long_layer"], 0);
+        if (!obj["long_mac"].isNull()) {
+            wol_manager_parse_mac(obj["long_mac"].as<String>().c_str(), b.long_action.wol_mac);
+        }
 
         b.has_double = obj["has_double"] | false;
         b.double_ms = parse_u32_or_hex(obj["double_ms"], 250);
@@ -136,6 +158,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         b.double_action.key_code = (uint8_t)parse_u32_or_hex(obj["double_key"], 0);
         b.double_action.consumer_code = (uint16_t)parse_u32_or_hex(obj["double_cons"], 0);
         b.double_action.target_layer = (uint8_t)parse_u32_or_hex(obj["double_layer"], 0);
+        if (!obj["double_mac"].isNull()) {
+            wol_manager_parse_mac(obj["double_mac"].as<String>().c_str(), b.double_action.wol_mac);
+        }
 
         layer->bindings[layer->binding_count++] = b;
     }
