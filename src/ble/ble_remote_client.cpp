@@ -563,6 +563,7 @@ static bool setup_services_and_handshake() {
                             led_indicator_set_low_battery(s_battery_pct >= 0 && s_battery_pct <= 15);
                         }
                     }
+                    s_last_battery_poll_ms = millis();
                     if (pChar->canNotify()) {
                         pChar->subscribe(true, on_battery_notify, false);
                         sub_count++;
@@ -808,9 +809,9 @@ void ble_remote_task(void) {
         }
     }
 
-    // 5. Periodic Battery polling (every 60 seconds if connected)
+    // 5. Periodic Battery polling (every 30 minutes if connected, fallback for notifications)
     if (s_ble_state >= BLE_STATE_CONNECTED && s_client && s_client->isConnected() && s_char_bat != nullptr) {
-        if (now - s_last_battery_poll_ms >= 60000) {
+        if (now - s_last_battery_poll_ms >= 1800000) {
             s_last_battery_poll_ms = now;
             if (s_char_bat->canRead()) {
                 NimBLEAttValue val = s_char_bat->readValue();
