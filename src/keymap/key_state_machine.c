@@ -1,4 +1,5 @@
 #include "key_state_machine.h"
+#include "wol_manager.h"
 #include "app_config.h"
 #include <string.h>
 #include <freertos/FreeRTOS.h>
@@ -139,6 +140,12 @@ static void emit_action(key_mapper_engine_t *engine, const key_action_t *action,
             next_layer = 0;
         }
         key_engine_switch_layer(engine, next_layer, engine->last_telemetry.timestamp);
+        return;
+    }
+
+    // Wake-on-LAN Action
+    if (action->type == ACTION_WOL) {
+        wol_manager_send(action->wol_mac, 9);
         return;
     }
 
@@ -473,7 +480,7 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                     b.click_action.type == ACTION_CONSUMER_HOLD || 
                     b.click_action.type == ACTION_VOICE_HOLD) {
                     emit_action(engine, &b.click_action, raw_key_code, true);
-                } else if (b.click_action.type == ACTION_SWITCH_LAYER) {
+                } else if (b.click_action.type == ACTION_SWITCH_LAYER || b.click_action.type == ACTION_WOL) {
                     emit_action(engine, &b.click_action, raw_key_code, true);
                 }
             }
@@ -496,7 +503,7 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                 } else if (b.click_action.type == ACTION_VOICE_HOLD) {
                     key_action_t rel = { ACTION_VOICE_RELEASE, 0, 0, 0, 0 };
                     emit_action(engine, &rel, raw_key_code, false);
-                } else if (b.has_click && b.click_action.type != ACTION_SWITCH_LAYER) {
+                } else if (b.has_click && b.click_action.type != ACTION_SWITCH_LAYER && b.click_action.type != ACTION_WOL) {
                     emit_action(engine, &b.click_action, raw_key_code, false);
                 }
             } else {

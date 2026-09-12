@@ -19,6 +19,7 @@ void led_indicator_init(void);
 void led_indicator_set(led_state_t state);
 void led_indicator_trigger_key(bool is_voice_key);
 void led_indicator_set_layer_color(uint32_t rgb_color);
+void led_indicator_set_low_battery(bool is_low);
 
 #ifdef __cplusplus
 }

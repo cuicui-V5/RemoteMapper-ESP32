@@ -63,6 +63,11 @@ void ble_remote_unpair(void);
  */
 String ble_remote_get_connected_info(void);
 
+/**
+ * @brief Get connected remote battery level percentage (0~100, or -1 if unknown/disconnected)
+ */
+int ble_remote_get_battery_pct(void);
+
 #ifdef __cplusplus
 }
 #endif

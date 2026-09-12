@@ -15,6 +15,7 @@ static bool s_is_flashing = false;
 
 static uint32_t s_layer_color = 0x00FF00; // Default green for Layer 0
 static bool s_layer_flash = false;
+static bool s_low_battery = false;
 
 static void update_hardware_led(led_state_t state) {
     if (s_layer_flash && s_is_flashing) {
@@ -23,6 +24,15 @@ static void update_hardware_led(led_state_t state) {
         uint8_t b = (uint8_t)((s_layer_color & 0xFF) * 36 / 255);
         neopixelWrite(RGB_BUILTIN, r, g, b);
         return;
+    }
+
+    // Low battery white double-pulse alert when connected
+    if (s_low_battery && state == LED_STATE_CONNECTED) {
+        uint32_t phase = millis() % 2000;
+        if ((phase < 120) || (phase >= 220 && phase < 340)) {
+            neopixelWrite(RGB_BUILTIN, 32, 32, 32); // Crisp White flash
+            return;
+        }
     }
 
     switch (state) {
@@ -91,5 +101,9 @@ void led_indicator_set_layer_color(uint32_t rgb_color) {
     s_layer_flash = true;
     s_flash_expire_time = millis() + 200; // 200ms flash on layer change
     s_is_flashing = true;
+}
+
+void led_indicator_set_low_battery(bool is_low) {
+    s_low_battery = is_low;
 }
 

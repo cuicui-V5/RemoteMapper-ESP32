@@ -15,6 +15,9 @@ static NimBLEClient*                   s_client = nullptr;
 static NimBLERemoteCharacteristic*     s_char_cmd = nullptr;
 static NimBLERemoteCharacteristic*     s_char_aud = nullptr;
 static NimBLERemoteCharacteristic*     s_char_ctl = nullptr;
+static NimBLERemoteCharacteristic*     s_char_bat = nullptr;
+static int                             s_battery_pct = -1;
+static uint32_t                        s_last_battery_poll_ms = 0;
 static volatile bool                   s_is_encrypted = false;
 
 static Preferences                     s_ble_prefs;
@@ -57,6 +60,15 @@ static void start_scan();
 static bool do_connect_adv_device(NimBLEAdvertisedDevice* advDevice);
 static bool do_connect_mac(const String& mac_str, uint8_t addr_type);
 static bool setup_services_and_handshake();
+
+// Battery Notification Callback (0x180F / 0x2A19)
+static void on_battery_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
+    if (pData && length >= 1) {
+        s_battery_pct = (int)pData[0];
+        app_log("BATTERY", "Remote battery level updated: %d%%", s_battery_pct);
+        led_indicator_set_low_battery(s_battery_pct >= 0 && s_battery_pct <= 15);
+    }
+}
 
 // Audio Notification Callback (ATVV Char 0x03)
 static void on_audio_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
@@ -344,11 +356,14 @@ class ClientCallbacks : public NimBLEClientCallbacks {
         s_char_cmd = nullptr;
         s_char_aud = nullptr;
         s_char_ctl = nullptr;
+        s_char_bat = nullptr;
+        s_battery_pct = -1;
         s_last_hogp_key = 0;
         key_engine_release_all(&g_key_engine, millis());
         usb_hid_keyboard_release();
         usb_hid_consumer_release();
         audio_pipeline_stop_session(&g_audio_pipeline);
+        led_indicator_set_low_battery(false);
         led_indicator_set(LED_STATE_WAIT_CONNECTION);
         // NOTE: Do NOT call start_scan() directly inside GAP disconnect callback.
         // ble_remote_task() on Core 0 automatically restarts scanning on the next tick.
@@ -417,6 +432,7 @@ static bool setup_services_and_handshake() {
 
     NimBLERemoteService* atvv_svc = nullptr;
     NimBLERemoteService* hid_svc = nullptr;
+    NimBLERemoteService* bat_svc = nullptr;
 
     for (auto* pSvc : *pServices) {
         String svc_uuid = pSvc->getUUID().toString().c_str();
@@ -427,6 +443,8 @@ static bool setup_services_and_handshake() {
             atvv_svc = pSvc;
         } else if (pSvc->getUUID().equals(NimBLEUUID((uint16_t)HOGP_SVC_UUID)) || svc_uuid.indexOf("1812") >= 0) {
             hid_svc = pSvc;
+        } else if (pSvc->getUUID().equals(NimBLEUUID((uint16_t)0x180F)) || svc_uuid.indexOf("180f") >= 0) {
+            bat_svc = pSvc;
         }
     }
 
@@ -519,6 +537,43 @@ static bool setup_services_and_handshake() {
         }
     } else {
         app_log("HOGP", "Warning: HID Service (0x1812) not found in GATT services!");
+    }
+
+    // STEP 3: Process Battery Service (0x180F)
+    if (bat_svc) {
+        app_log("BATTERY", "Discovering Battery characteristics...");
+        std::vector<NimBLERemoteCharacteristic*>* pChars = nullptr;
+        for (int retry = 0; retry < 3; retry++) {
+            pChars = bat_svc->getCharacteristics(true);
+            if (pChars && !pChars->empty()) break;
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }
+
+        if (pChars) {
+            for (auto* pChar : *pChars) {
+                String char_uuid = pChar->getUUID().toString().c_str();
+                char_uuid.toLowerCase();
+                if (pChar->getUUID().equals(NimBLEUUID((uint16_t)0x2A19)) || char_uuid.indexOf("2a19") >= 0) {
+                    s_char_bat = pChar;
+                    if (pChar->canRead()) {
+                        NimBLEAttValue val = pChar->readValue();
+                        if (val.length() >= 1) {
+                            s_battery_pct = (int)val[0];
+                            app_log("BATTERY", "Remote battery initial level: %d%%", s_battery_pct);
+                            led_indicator_set_low_battery(s_battery_pct >= 0 && s_battery_pct <= 15);
+                        }
+                    }
+                    if (pChar->canNotify()) {
+                        pChar->subscribe(true, on_battery_notify, false);
+                        sub_count++;
+                        app_log("BATTERY", "Subscribed to Battery Level notifications");
+                        vTaskDelay(pdMS_TO_TICKS(25));
+                    }
+                }
+            }
+        }
+    } else {
+        app_log("BATTERY", "Battery Service (0x180F) not found in GATT services");
     }
 
     app_log("BLE", "Total Subscribed Characteristic(s): %d", sub_count);
@@ -752,6 +807,21 @@ void ble_remote_task(void) {
             }
         }
     }
+
+    // 5. Periodic Battery polling (every 60 seconds if connected)
+    if (s_ble_state >= BLE_STATE_CONNECTED && s_client && s_client->isConnected() && s_char_bat != nullptr) {
+        if (now - s_last_battery_poll_ms >= 60000) {
+            s_last_battery_poll_ms = now;
+            if (s_char_bat->canRead()) {
+                NimBLEAttValue val = s_char_bat->readValue();
+                if (val.length() >= 1) {
+                    s_battery_pct = (int)val[0];
+                    app_log("BATTERY", "Periodic battery poll: %d%%", s_battery_pct);
+                    led_indicator_set_low_battery(s_battery_pct >= 0 && s_battery_pct <= 15);
+                }
+            }
+        }
+    }
 }
 
 ble_remote_state_t ble_remote_get_state(void) {
@@ -844,9 +914,14 @@ String ble_remote_get_connected_info(void) {
     doc["mac"] = s_connected_mac;
     doc["bound_mac"] = s_bound_mac;
     doc["bound_name"] = s_bound_name;
+    doc["battery_pct"] = s_battery_pct;
     String out;
     serializeJson(doc, out);
     return out;
+}
+
+int ble_remote_get_battery_pct(void) {
+    return s_battery_pct;
 }
 
 } // extern "C"
