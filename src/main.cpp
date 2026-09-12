@@ -69,8 +69,14 @@ void setup() {
     // 6. Initialize Wi-Fi AP + STA & Captive Portal
     wifi_manager_init();
 
-    // 7. Initialize Embedded Web Server & REST APIs
-    web_server_init();
+    // 7. Initialize Embedded Web Server & REST APIs (Wi-Fi only).
+    //    lwIP/esp_netif are initialized inside the Wi-Fi library; starting a TCP
+    //    server while Wi-Fi is disabled triggers a lwIP assert and reboots the chip.
+    if (wifi_manager_get_enabled()) {
+        web_server_init();
+    } else {
+        app_log("SYSTEM", "Wi-Fi disabled: web server not started");
+    }
 
     // 8. Launch BLE Central Task pinned to Core 0
     xTaskCreatePinnedToCore(
@@ -83,7 +89,11 @@ void setup() {
         TASK_CORE_BLE
     );
 
-    app_log("SYSTEM", "System initialization complete. Web available at http://192.168.4.1 or http://remotemapper.local");
+    if (wifi_manager_get_enabled()) {
+        app_log("SYSTEM", "System initialization complete. Web available at http://192.168.4.1 or http://remotemapper.local");
+    } else {
+        app_log("SYSTEM", "System initialization complete. Wi-Fi radio off (use CDC/UART: 'wifi on')");
+    }
 }
 
 void loop() {
@@ -95,8 +105,10 @@ void loop() {
     // 2. Service Wi-Fi & DNS tasks
     wifi_manager_task();
 
-    // 3. Service HTTP Web Server
-    web_server_task();
+    // 3. Service HTTP Web Server (only when Wi-Fi is enabled)
+    if (wifi_manager_get_enabled()) {
+        web_server_task();
+    }
 
     // 4. Service Serial / WebSerial CLI commands
     cli_manager_task();

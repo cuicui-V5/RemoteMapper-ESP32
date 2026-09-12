@@ -12,6 +12,9 @@ extern "C" {
 
 void   wifi_manager_init(void);
 void   wifi_manager_task(void);
+bool   wifi_manager_get_enabled(void);
+bool   wifi_manager_set_enabled(bool enabled);
+bool   wifi_manager_is_ap_running(void);
 String wifi_manager_get_ap_ip(void);
 String wifi_manager_get_sta_ip(void);
 bool   wifi_manager_is_sta_connected(void);
@@ -24,4 +27,3 @@ bool   wifi_manager_save_ap_config(const String& ap_password);
 #ifdef __cplusplus
 }
 #endif
-
