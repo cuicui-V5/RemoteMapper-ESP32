@@ -28,39 +28,40 @@ static DRAM_ATTR int16_t s_tx_buf[32]; // 32 samples (64 bytes) for 2ms batches
 // be free. The average rate is exactly 16000 samples/sec, which Windows UAC perfectly
 // absorbs despite the 1ms endpoint polling rate.
 // ---------------------------------------------------------------------------
-extern "C" void usbd_edpt_clear_stall(uint8_t rhport, uint8_t ep_addr);
-
-#define DWC2_USB_BASE           0x60080000
-#define DWC2_DIEPCTL(n)         *(volatile uint32_t*)(DWC2_USB_BASE + 0x900 + (n) * 0x20)
-#define DWC2_EPCTL_EPDIS        (1 << 30)
-#define DWC2_EPCTL_SNAK         (1 << 27)
-
 static volatile uint32_t s_xfer_cb_count = 0;
+
+static void uac_soft_reopen_endpoint(uint8_t rhport) {
+    uint8_t ep_addr = (uint8_t)(s_uac_ep_in | 0x80);
+    usbd_edpt_close(rhport, ep_addr);
+
+    tusb_desc_endpoint_t ep;
+    ep.bLength          = sizeof(tusb_desc_endpoint_t);
+    ep.bDescriptorType  = TUSB_DESC_ENDPOINT;
+    ep.bEndpointAddress = ep_addr;
+    ep.bmAttributes.xfer = TUSB_XFER_ISOCHRONOUS;
+    ep.bmAttributes.sync = 1;
+    ep.wMaxPacketSize   = 64;
+    ep.bInterval        = 2;
+    usbd_edpt_open(rhport, &ep);
+
+    memset(s_tx_buf, 0, 64);
+    usbd_edpt_xfer(rhport, ep_addr, (uint8_t*)s_tx_buf, 64);
+}
 
 static void uac_watchdog_task(void* arg) {
     uint32_t last_count = 0;
     uint32_t stuck_ticks = 0;
     while(1) {
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(100));
         
         // ONLY monitor if USB is fully mounted, active, NOT suspended by host, and streaming
         if (tud_mounted() && !tud_suspended() && s_uac_streaming) {
             if (s_xfer_cb_count == last_count) {
-                stuck_ticks += 10;
-                if (stuck_ticks >= 50) {
-                    app_log("UAC", "Watchdog: Isochronous IN stalled. Forcing hardware EPDIS and software clear_stall!");
-                    uint8_t epnum = s_uac_ep_in & 0x7F;
-                    DWC2_DIEPCTL(epnum) |= (DWC2_EPCTL_EPDIS | DWC2_EPCTL_SNAK);
-                    
-                    // Give hardware a tiny moment to flush and disable
-                    vTaskDelay(pdMS_TO_TICKS(2));
-                    
-                    // Clear the TinyUSB software leftover BUSY bit
-                    usbd_edpt_clear_stall(0, (uint8_t)(s_uac_ep_in | 0x80));
-                    
-                    // Kick off a fresh transfer
-                    memset(s_tx_buf, 0, 64);
-                    usbd_edpt_xfer(0, (uint8_t)(s_uac_ep_in | 0x80), (uint8_t*)s_tx_buf, 64);
+                stuck_ticks += 100;
+                if (stuck_ticks >= 3000) { // Relaxed to 3.0 seconds
+                    app_log("UAC", "Watchdog: Isochronous IN idle/stalled for 3s. Performing clean soft reset...");
+                    uac_soft_reopen_endpoint(0);
+                    last_count = s_xfer_cb_count;
                     stuck_ticks = 0;
                 }
             } else {
@@ -160,23 +161,8 @@ static bool uac_driver_control_xfer_cb(uint8_t rhport, uint8_t stage,
             s_uac_alt       = alt;
             s_uac_streaming = (alt == 1);
             
-            // Force release endpoint to clear stuck busy flags from aborted transfers
-            usbd_edpt_close(rhport, (uint8_t)(s_uac_ep_in | 0x80));
-
             if (alt == 1) {
-                tusb_desc_endpoint_t ep;
-                ep.bLength          = sizeof(tusb_desc_endpoint_t);
-                ep.bDescriptorType  = TUSB_DESC_ENDPOINT;
-                ep.bEndpointAddress = (uint8_t)(s_uac_ep_in | 0x80);
-                ep.bmAttributes.xfer = TUSB_XFER_ISOCHRONOUS;
-                ep.bmAttributes.sync = 1;
-                ep.wMaxPacketSize   = 64;
-                ep.bInterval        = 2;
-                usbd_edpt_open(rhport, &ep);
-
-                // Kick off the continuous Isochronous IN chain
-                memset(s_tx_buf, 0, 64);
-                usbd_edpt_xfer(rhport, ep.bEndpointAddress, (uint8_t*)s_tx_buf, 64);
+                uac_soft_reopen_endpoint(rhport);
             } else {
                 usbd_edpt_close(rhport, (uint8_t)(s_uac_ep_in | 0x80));
             }
