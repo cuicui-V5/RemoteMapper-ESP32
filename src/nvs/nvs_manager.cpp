@@ -116,6 +116,7 @@ String nvs_manager_dump_json(void) {
         if (prefs.isKey("sta_pass")) wifiObj["sta_pass"] = prefs.getString("sta_pass", "");
         if (prefs.isKey("ap_ssid"))  wifiObj["ap_ssid"]  = prefs.getString("ap_ssid", "");
         if (prefs.isKey("ap_pass"))  wifiObj["ap_pass"]  = prefs.getString("ap_pass", "");
+        if (prefs.isKey("wifi_enabled")) wifiObj["wifi_enabled"] = prefs.getBool("wifi_enabled", true);
         prefs.end();
     }
     if (prefs.begin("ble_conf", true)) {

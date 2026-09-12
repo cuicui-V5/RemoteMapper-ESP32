@@ -16,17 +16,15 @@ static IPAddress        s_ap_netmask(255, 255, 255, 0);
 
 static bool             s_sta_configured = false;
 static uint32_t         s_last_sta_check = 0;
+static bool             s_wifi_enabled = true;
+static bool             s_ap_running = false;
+static bool             s_mdns_started = false;
 
-void wifi_manager_init(void) {
-    s_prefs.begin("wifi_conf", false);
-    String sta_ssid = s_prefs.getString("ssid", "");
-    String sta_pass = s_prefs.getString("pass", "");
-    String ap_pass  = s_prefs.getString("ap_pass", "");
-
-    // Set Wi-Fi Mode
-    WiFi.mode(WIFI_AP_STA);
-
-    // 1. Configure and start AP Mode
+static void wifi_start_ap(const String& ap_pass) {
+    if (s_ap_running) {
+        s_dns_server.stop();
+        WiFi.softAPdisconnect(false);
+    }
     WiFi.softAPConfig(s_ap_ip, s_ap_ip, s_ap_netmask);
     if (ap_pass.length() >= 8) {
         WiFi.softAP(AP_SSID, ap_pass.c_str());
@@ -35,12 +33,23 @@ void wifi_manager_init(void) {
         WiFi.softAP(AP_SSID, "");
         app_log("WIFI", "AP Started: %s (Open Network, IP: 192.168.4.1)", AP_SSID);
     }
-
-    // 2. Start Captive Portal DNS
     s_dns_server.setErrorReplyCode(DNSReplyCode::NoError);
     s_dns_server.start(DNS_PORT, "*", s_ap_ip);
+    s_ap_running = true;
+}
 
-    // 3. Connect to Home Wi-Fi if saved
+static void wifi_apply_config(void) {
+    String sta_ssid = s_prefs.getString("ssid", "");
+    String sta_pass = s_prefs.getString("pass", "");
+    String ap_pass  = s_prefs.getString("ap_pass", "");
+
+    // Set Wi-Fi Mode (AP + STA)
+    WiFi.mode(WIFI_AP_STA);
+
+    // 1. Configure and start AP Mode
+    wifi_start_ap(ap_pass);
+
+    // 2. Connect to Home Wi-Fi if saved
     if (sta_ssid.length() > 0) {
         s_sta_configured = true;
         app_log("WIFI", "Connecting to Home Wi-Fi: %s...", sta_ssid.c_str());
@@ -49,15 +58,59 @@ void wifi_manager_init(void) {
         app_log("WIFI", "No Home Wi-Fi configured, running in AP Setup mode");
     }
 
-    // 4. Start mDNS
-    if (MDNS.begin(MDNS_HOSTNAME)) {
+    // 3. Start mDNS (once per boot)
+    if (!s_mdns_started && MDNS.begin(MDNS_HOSTNAME)) {
         MDNS.addService("http", "tcp", 80);
         app_log("WIFI", "mDNS responder started: http://%s.local", MDNS_HOSTNAME);
+        s_mdns_started = true;
     }
 }
 
+void wifi_manager_init(void) {
+    s_prefs.begin("wifi_conf", false);
+    s_wifi_enabled = s_prefs.getBool("wifi_enabled", true);
+
+    if (!s_wifi_enabled) {
+        // Never touch the WiFi stack when disabled: de-initializing WiFi before BLE
+        // starts (or tearing it down at runtime) breaks 2.4GHz coexistence and can
+        // stop the BLE link from coming up. The radio simply stays uninitialized.
+        app_log("WIFI", "Wi-Fi disabled by config; radio left uninitialized (USB CDC/UART: 'wifi on')");
+        return;
+    }
+
+    // 1. Start AP + STA + mDNS
+    wifi_apply_config();
+}
+
+bool wifi_manager_get_enabled(void) {
+    return s_wifi_enabled;
+}
+
+bool wifi_manager_is_ap_running(void) {
+    return s_ap_running;
+}
+
+bool wifi_manager_set_enabled(bool enabled) {
+    if (s_wifi_enabled == enabled) {
+        return true;
+    }
+
+    s_prefs.putBool("wifi_enabled", enabled);
+    s_wifi_enabled = enabled;
+
+    // Applying the change requires a reboot: the caller (CLI/web) must restart.
+    // Switching the WiFi stack on/off at runtime is unsafe while BLE is running.
+    app_log("WIFI", "Wi-Fi %s saved; reboot required to apply", enabled ? "enable" : "disable");
+    return true;
+}
+
 void wifi_manager_task(void) {
-    s_dns_server.processNextRequest();
+    if (!s_wifi_enabled) {
+        return;
+    }
+    if (s_ap_running) {
+        s_dns_server.processNextRequest();
+    }
 
     uint32_t now = millis();
     if (s_sta_configured && (now - s_last_sta_check > 5000)) {
@@ -73,10 +126,12 @@ void wifi_manager_task(void) {
 }
 
 String wifi_manager_get_ap_ip(void) {
+    if (!s_wifi_enabled) return "Disabled";
     return WiFi.softAPIP().toString();
 }
 
 String wifi_manager_get_sta_ip(void) {
+    if (!s_wifi_enabled) return "Disabled";
     if (WiFi.status() == WL_CONNECTED) {
         return WiFi.localIP().toString();
     }
@@ -84,10 +139,12 @@ String wifi_manager_get_sta_ip(void) {
 }
 
 bool wifi_manager_is_sta_connected(void) {
+    if (!s_wifi_enabled) return false;
     return WiFi.status() == WL_CONNECTED;
 }
 
 int8_t wifi_manager_get_sta_rssi(void) {
+    if (!s_wifi_enabled) return 0;
     if (WiFi.status() == WL_CONNECTED) {
         return WiFi.RSSI();
     }
@@ -95,6 +152,9 @@ int8_t wifi_manager_get_sta_rssi(void) {
 }
 
 String wifi_manager_scan_json(void) {
+    if (!s_wifi_enabled) {
+        return "{\"networks\":[],\"error\":\"wifi_disabled\"}";
+    }
     app_log("WIFI", "Scanning for 2.4GHz Wi-Fi networks...");
     int n = WiFi.scanNetworks();
     JsonDocument doc;
@@ -114,6 +174,7 @@ String wifi_manager_scan_json(void) {
 }
 
 bool wifi_manager_save_sta_config(const String& ssid, const String& password) {
+    if (!s_wifi_enabled) return false;
     if (ssid.length() == 0) return false;
 
     s_prefs.putString("ssid", ssid);
@@ -131,6 +192,7 @@ String wifi_manager_get_ap_pass(void) {
 }
 
 bool wifi_manager_save_ap_config(const String& ap_password) {
+    if (!s_wifi_enabled) return false;
     String p = ap_password;
     p.trim();
     if (p.length() > 0 && p.length() < 8) {
@@ -148,4 +210,3 @@ bool wifi_manager_save_ap_config(const String& ap_password) {
     }
     return true;
 }
-
