@@ -152,17 +152,6 @@ bool usb_hid_keyboard_press(uint8_t modifier, uint8_t keycode) {
         vTaskDelay(pdMS_TO_TICKS(15));
     }
 
-    if (usbd_edpt_busy(0, 0x81)) {
-        usbd_edpt_clear_stall(0, 0x81);
-    }
-
-    // 1. Direct TinyUSB driver report
-    hid_keyboard_report_t kbd = {0};
-    kbd.modifier = modifier;
-    kbd.keycode[0] = keycode;
-    tud_hid_n_report(0, HID_REPORT_ID_KEYBOARD, &kbd, sizeof(kbd));
-
-    // 2. Arduino helper state update
     KeyReport report = {0};
     report.modifiers = modifier;
     report.keys[0] = keycode;
@@ -175,13 +164,6 @@ bool usb_hid_keyboard_press(uint8_t modifier, uint8_t keycode) {
 bool usb_hid_keyboard_release(void) {
     if (!s_usb_ready) return false;
     hid_lock();
-
-    if (usbd_edpt_busy(0, 0x81)) {
-        usbd_edpt_clear_stall(0, 0x81);
-    }
-
-    hid_keyboard_report_t kbd = {0};
-    tud_hid_n_report(0, HID_REPORT_ID_KEYBOARD, &kbd, sizeof(kbd));
 
     KeyReport report = {0}; // All zeroes
     s_keyboard.sendReport(&report);
@@ -209,11 +191,6 @@ bool usb_hid_consumer_press(uint16_t usage_code) {
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 
-    if (usbd_edpt_busy(0, 0x81)) {
-        usbd_edpt_clear_stall(0, 0x81);
-    }
-
-    tud_hid_n_report(0, HID_REPORT_ID_CONSUMER_CONTROL, &usage_code, 2);
     s_consumer.press(usage_code);
 
     hid_unlock();
@@ -224,12 +201,6 @@ bool usb_hid_consumer_release(void) {
     if (!s_usb_ready) return false;
     hid_lock();
 
-    if (usbd_edpt_busy(0, 0x81)) {
-        usbd_edpt_clear_stall(0, 0x81);
-    }
-
-    uint16_t zero = 0;
-    tud_hid_n_report(0, HID_REPORT_ID_CONSUMER_CONTROL, &zero, 2);
     s_consumer.release();
 
     hid_unlock();
