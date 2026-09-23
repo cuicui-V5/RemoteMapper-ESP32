@@ -10,8 +10,14 @@ build/
 *.hex
 *.log
 
-# RemoteMapper-Flasher standalone flashing tools & binaries
-!RemoteMapper-Flasher/bin/*.bin
+# Archives & release packages
+*.7z
+*.zip
+RemoteMapper-Flasher.7z
+RemoteMapper-Flasher.zip
+
+# RemoteMapper-Flasher standalone flashing tools & prebuilt binaries
+RemoteMapper-Flasher/bin/
 !RemoteMapper-Flasher/tools/*.exe
 !RemoteMapper-Flasher/tools/*.bin
 !tools/boot_app0.bin

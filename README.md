@@ -130,15 +130,15 @@
 
 无需安装 Python、PlatformIO、Git 或任何开发编译环境，开箱即用：
 
-1. **获取刷机包**：
-   - **方式 A**：直接在 GitHub 点击 Code -> Download ZIP 下载本项目压缩包并解压，使用里面的 `RemoteMapper-Flasher` 文件夹；
-   - **方式 B**：前往本仓库的 [Releases](https://github.com/cuicui-V5/RemoteMapper-ESP32/releases) 页面，直接下载已单独打包好的刷机包压缩包。
+1. **获取免环境刷机包**：
+   前往本仓库的 [Releases 页面](https://github.com/cuicui-V5/RemoteMapper-ESP32/releases)（或直接点击 [最新一键刷机包下载](https://github.com/cuicui-V5/RemoteMapper-ESP32/releases/tag/release)），在 Assets 附件中下载 `RemoteMapper-Flasher.7z`（或 `.zip`）并解压。
+   > ⚠️ **重要提示**：Git 源码仓库（包括点击 Code -> Download ZIP）仅用于存放源代码，**不包含**预编译固件二进制。普通用户请务必前往 Releases 页面下载独立绿色刷机包，切勿直接下载源码包进行刷机。
 2. **连接硬件**：
    使用具备数据传输功能的 Type-C 数据线，连接电脑与 ESP32-S3 开发板的 **USB / OTG** 接口（双口板请勿插在 UART 口）。
 3. **进入刷机模式**：
    按住开发板上的 **`BOOT`** 键不放，点按一下 **`RST`** 重启键，然后松开 **`BOOT`** 键。
 4. **一键写入**：
-   进入 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
+   进入解压后的 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
 
 ---
 
@@ -156,6 +156,11 @@ build.bat n8r2     :: 仅编译 N8R2 版本
 build.bat n4r2     :: 仅编译 N4R2 版本
 ```
 
+如需将本地编译出的固件一键打包并推送到 GitHub Releases，可直接运行：
+```cmd
+publish_release.bat  :: 本地全自动压缩为 .7z/.zip 并直接更新发布至 GitHub Releases
+```
+
 ### 2. 正常烧录 (`flash.bat`)
 
 编译完成后，通过根目录下的 `flash.bat` 脚本直接烧录至开发板：
@@ -164,7 +169,7 @@ flash.bat n16r8    :: 烧录至 N16R8 开发板（默认）
 flash.bat n8r2     :: 烧录至 N8R2 开发板
 flash.bat n4r2     :: 烧录至 N4R2 开发板
 ```
-*(注：若本地未安装 PlatformIO 环境，运行根目录 `flash.bat` 会自动检测并引导启动 `RemoteMapper-Flasher` 免环境刷写工具)*
+*(注：若本地未安装 PlatformIO 环境，请直接前往 Releases 页面下载 `RemoteMapper-Flasher` 免环境刷写工具)*
 
 也可以直接使用 PlatformIO 原生命令：
 ```bash
