@@ -222,6 +222,35 @@ pio run -e esp32s3_n4r2 -t upload
 
 ---
 
+## 💖 赞助与支持
+
+**RemoteMapper-ESP32 作为社区最早将小米蓝牙语音遥控器完整适配到 ESP32 硬件桥接的开创性开源项目之一**，率先攻克了 Windows 下返回键与音量键被系统底层驱动丢弃的历史痛点，开创性地在 ESP32-S3 双核架构下完整实现了 **BLE 遥控捕获 + USB HID 复合设备模拟 + UAC 实时无线麦克风音频推流 + 网页端可视化配置与免环境刷写工具**。
+
+从底层蓝牙协议逆向解析、双核调度稳定性攻坚，到多型号硬件适配与图形化工具开发，作者投入了大量的业余心血与精力，并将这套成熟、完善的方案毫无保留地完全开源、永久免费分享给社区。
+
+开源不易，硬件开发与维护更需持续投入。如果你觉得本项目为你解决了遥控器痛点、带来了便利，或者对你有所启发，欢迎扫码自愿请作者喝一杯咖啡 ☕ / 冰阔落 🥤！
+
+你的每一份认可与支持，都是对开创与探索最好的肯定，也是激励作者持续跟进 Issue、适配更多硬件与迭代新特性的最大动力 ❤️。
+
+<div align="center">
+  <img src="./docs/images/wechat_reward.png" width="280" alt="微信赞赏码" />
+  <p><em>微信赞赏码（感谢每一位支持与认可开源的朋友 ❤️）</em></p>
+</div>
+
+---
+
+## ⭐ Star 历史
+
+如果觉得本项目对你有帮助，欢迎点亮右上角的 **Star** ⭐ 支持一下！
+
+<div align="center">
+  <a href="https://star-history.com/#cuicui-V5/RemoteMapper-ESP32&Date">
+    <img src="https://api.star-history.com/svg?repos=cuicui-V5/RemoteMapper-ESP32&type=Date" alt="Star History Chart" />
+  </a>
+</div>
+
+---
+
 ## 致谢
 
 * [QL-4/RemoteMapper](https://github.com/QL-4/RemoteMapper)：提供了 Windows C# 软件方案与 ATVV 协议参考。
