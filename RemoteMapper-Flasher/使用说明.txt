@@ -8,6 +8,7 @@
 
 二、支持硬件
 - ESP32-S3-WROOM-1 N16R8（16MB Flash / 8MB Octal PSRAM，推荐）
+- ESP32-S3-WROOM-1 N8R8（8MB Flash / 8MB Octal PSRAM）
 - ESP32-S3-WROOM-1 N8R2（8MB Flash / 2MB Quad PSRAM）
 - ESP32-S3-WROOM-1 N4R2（4MB Flash / 2MB Quad PSRAM）
 
@@ -35,6 +36,7 @@ RemoteMapper-Flasher/
 ├── 使用说明.txt         # 本使用指南文档
 ├── bin/                 # 预编译各型号完整固件镜像
 │   ├── RemoteMapper_ESP32S3_N16R8_full.bin
+│   ├── RemoteMapper_ESP32S3_N8R8_full.bin
 │   ├── RemoteMapper_ESP32S3_N8R2_full.bin
 │   └── RemoteMapper_ESP32S3_N4R2_full.bin
 └── tools/               # 烧录工具

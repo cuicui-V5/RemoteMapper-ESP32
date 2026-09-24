@@ -73,6 +73,8 @@ echo %~1 | findstr /i "^COM[0-9]" >nul && (
 )
 if /i "%~1"=="n16r8" set "TARGET_ENV=esp32s3_n16r8" & exit /b 0
 if /i "%~1"=="esp32s3_n16r8" set "TARGET_ENV=esp32s3_n16r8" & exit /b 0
+if /i "%~1"=="n8r8" set "TARGET_ENV=esp32s3_n8r8" & exit /b 0
+if /i "%~1"=="esp32s3_n8r8" set "TARGET_ENV=esp32s3_n8r8" & exit /b 0
 if /i "%~1"=="n8r2" set "TARGET_ENV=esp32s3_n8r2" & exit /b 0
 if /i "%~1"=="esp32s3_n8r2" set "TARGET_ENV=esp32s3_n8r2" & exit /b 0
 if /i "%~1"=="n4r2" set "TARGET_ENV=esp32s3_n4r2" & exit /b 0

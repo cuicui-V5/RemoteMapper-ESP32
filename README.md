@@ -4,7 +4,7 @@
 
 将遥控器信号直接转换为标准免驱的 USB 输入设备（UAC 1.0 麦克风 + HID 键盘 + 媒体控制），解决 Windows 系统下特定按键被丢弃和音频输入依赖虚拟声卡的问题。
 
-注：当前固件仅支持**小米蓝牙遥控器 2 Pro（型号：RC003）**，暂不支持其他型号。支持 ESP32-S3 N16R8、N8R2、N4R2 等主流硬件版本。
+注：当前固件仅支持**小米蓝牙遥控器 2 Pro（型号：RC003）**，暂不支持其他型号。支持 ESP32-S3 N16R8、N8R8、N8R2、N4R2 等主流硬件版本。
 
 ---
 
@@ -114,7 +114,8 @@
 
 1. **开发板要求**：
    任意 ESP32-S3 开发板，推荐配置：
-   * **N16R8**（16MB Flash, 8MB PSRAM）：默认构建目标。
+   * **N16R8**（16MB Flash, 8MB PSRAM）：推荐高配规格。
+   * **N8R8**（8MB Flash, 8MB PSRAM）：大内存高性价比规格。
    * **N8R2**（8MB Flash, 2MB PSRAM）：主流常见规格。
    * **N4R2**（4MB Flash, 2MB PSRAM）：极简规格，编译产物约 1.2MB。
 2. **遥控器**：
@@ -138,7 +139,7 @@
 3. **进入刷机模式**：
    按住开发板上的 **`BOOT`** 键不放，点按一下 **`RST`** 重启键，然后松开 **`BOOT`** 键。
 4. **一键写入**：
-   进入解压后的 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
+   进入解压后的 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
 
 ---
 
@@ -150,8 +151,9 @@
 
 运行根目录下的 `build.bat` 脚本：
 ```cmd
-build.bat          :: 一键编译全部 3 个版本（N16R8 / N8R2 / N4R2），并自动将生成镜像打包复制到 RemoteMapper-Flasher\bin 目录
+build.bat          :: 一键编译全部 4 个版本（N16R8 / N8R8 / N8R2 / N4R2），并自动将生成镜像打包复制到 RemoteMapper-Flasher\bin 目录
 build.bat n16r8    :: 仅编译 N16R8 版本
+build.bat n8r8     :: 仅编译 N8R8 版本
 build.bat n8r2     :: 仅编译 N8R2 版本
 build.bat n4r2     :: 仅编译 N4R2 版本
 ```
@@ -166,6 +168,7 @@ publish_release.bat  :: 本地全自动压缩为 .7z/.zip 并直接更新发布�
 编译完成后，通过根目录下的 `flash.bat` 脚本直接烧录至开发板：
 ```cmd
 flash.bat n16r8    :: 烧录至 N16R8 开发板（默认）
+flash.bat n8r8     :: 烧录至 N8R8 开发板
 flash.bat n8r2     :: 烧录至 N8R2 开发板
 flash.bat n4r2     :: 烧录至 N4R2 开发板
 ```
@@ -174,6 +177,7 @@ flash.bat n4r2     :: 烧录至 N4R2 开发板
 也可以直接使用 PlatformIO 原生命令：
 ```bash
 pio run -e esp32s3_n16r8 -t upload
+pio run -e esp32s3_n8r8 -t upload
 pio run -e esp32s3_n8r2 -t upload
 pio run -e esp32s3_n4r2 -t upload
 ```
