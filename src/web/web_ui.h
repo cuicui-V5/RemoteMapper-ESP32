@@ -311,9 +311,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 </div>
             </div>
             <div class="stat-card">
-                <div class="stat-title">Wi-Fi 局域网 IP</div>
-                <div class="stat-val" id="stat-sta-ip">192.168.2.179</div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px;" id="stat-ap-status">热点: 192.168.4.1</div>
+                <div class="stat-title">Wi-Fi 局域网 IP / 域名</div>
+                <div class="stat-val" id="stat-sta-ip">--</div>
+                <div style="font-size: 12px; color: var(--text-muted); margin-top: 2px; display: flex; justify-content: space-between; align-items: center;" id="stat-ap-status">
+                    <span id="stat-ap-badge">热点: 192.168.4.1</span>
+                    <a href="http://remotemapper.local" target="_blank" style="color: var(--accent-cyan); text-decoration: none; font-size: 11px;">域名访问 ↗</a>
+                </div>
             </div>
             <div class="stat-card">
                 <div class="stat-title">音频流水线状态</div>
@@ -667,6 +670,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <span>Wi-Fi 网络配置</span>
                         <button class="btn btn-outline" style="font-size: 12px;" onclick="scanWifiNetworks()">搜索 Wi-Fi</button>
                     </div>
+
+                    <div style="background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: #d1fae5;">
+                        <div style="font-weight: 700; color: #34d399; margin-bottom: 4px; display: flex; align-items: center; gap: 6px;">
+                            <span>🍃 低功耗运行与域名访问机制</span>
+                        </div>
+                        <div>
+                            • <strong>自动关 AP 降功耗</strong>：一旦设备成功连上家庭 Wi-Fi 并获取 IP，固件将<strong>立刻关闭 RemoteMapper-AP 热点</strong>以大幅减少射频发热与功耗。<br>
+                            • <strong>后续访问后台</strong>：请将电脑/手机连接同一家庭 Wi-Fi，通过局域网 IP 或统一域名直接访问：<br>
+                            <a href="http://remotemapper.local" target="_blank" style="color: #6ee7b7; font-weight: 700; text-decoration: underline; font-family: monospace;">http://remotemapper.local</a><br>
+                            • <strong>防失联保障</strong>：若路由器断电或 Wi-Fi 密码失效，设备将在断开 15 秒后自动重新开启 AP 热点以便重新配网。
+                        </div>
+                    </div>
+
                     <div id="wifi-scan-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);">
                         点击右上角“搜索 Wi-Fi”可扫描附近无线网络，点击即可自动填入 SSID。
                     </div>
@@ -685,7 +701,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <div class="card">
                         <div class="card-header">
                             <span>AP 热点配置</span>
-                            <span id="ap-badge" style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(6,182,212,0.15); color: var(--accent-cyan); border: 1px solid rgba(6,182,212,0.3);">开放热点</span>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <span id="ap-state-badge" style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.15); color: #34d399; border: 1px solid rgba(16,185,129,0.3);">运行中</span>
+                                <span id="ap-badge" style="font-size: 12px; padding: 2px 8px; border-radius: 6px; background: rgba(6,182,212,0.15); color: var(--accent-cyan); border: 1px solid rgba(6,182,212,0.3);">开放热点</span>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label style="display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px;">热点名称</label>
@@ -696,7 +715,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <input type="password" id="ap-pass" placeholder="留空为开放热点，设置密码需至少8位" style="width:100%; background:#0b0f17; border:1px solid var(--border-color); border-radius:8px; padding:10px 14px; color:#fff; font-size:14px; outline:none;">
                         </div>
                         <div style="margin-top: 10px; font-size: 12px; color: var(--text-muted); line-height: 1.5;">
-                            默认密码为空（开放热点）。设置密码需 8~63 位，保存后将自动启用 WPA2 加密保护。
+                            默认密码为空（开放热点）。设置密码需 8~63 位，保存后将自动启用 WPA2 加密保护。<br>
+                            <span style="color: #34d399;">★ 提示：STA 连上路由器后热点将自动关闭以降低功耗；断网 15 秒后自动恢复广播。</span>
                         </div>
                         <button class="btn" style="width: 100%; margin-top:14px;" onclick="saveApConfig()">保存 AP 配置</button>
                     </div>
@@ -1131,9 +1151,29 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 
                 await refreshBleInfo();
 
-                const apStatEl = document.getElementById('stat-ap-status');
-                if (apStatEl && d.ap_ip) {
-                    apStatEl.innerText = `热点: ${d.ap_ip} (${d.ap_secured ? 'WPA2' : '开放'})`;
+                const apBadgeEl = document.getElementById('stat-ap-badge');
+                if (apBadgeEl && d.ap_ip) {
+                    if (d.ap_running) {
+                        apBadgeEl.innerText = `热点: ${d.ap_ip} (${d.ap_secured ? 'WPA2' : '开放'})`;
+                        apBadgeEl.style.color = 'var(--text-muted)';
+                    } else {
+                        apBadgeEl.innerHTML = `<span style="color: #34d399;">🍃 热点已休眠(省电)</span>`;
+                    }
+                }
+
+                const apStateBadge = document.getElementById('ap-state-badge');
+                if (apStateBadge) {
+                    if (d.ap_running) {
+                        apStateBadge.innerText = '广播运行中';
+                        apStateBadge.style.color = '#38bdf8';
+                        apStateBadge.style.background = 'rgba(56,189,248,0.15)';
+                        apStateBadge.style.borderColor = 'rgba(56,189,248,0.3)';
+                    } else {
+                        apStateBadge.innerText = '已自动休眠 (省电)';
+                        apStateBadge.style.color = '#34d399';
+                        apStateBadge.style.background = 'rgba(16,185,129,0.15)';
+                        apStateBadge.style.borderColor = 'rgba(16,185,129,0.3)';
+                    }
                 }
 
                 if (d.ap_pass !== undefined) {
@@ -2479,11 +2519,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         async function saveWifi() {
-            const ssid = document.getElementById('wifi-ssid').value;
+            const ssid = document.getElementById('wifi-ssid').value.trim();
             const pass = document.getElementById('wifi-pass').value;
             if (!ssid) return alert('请输入 Wi-Fi 名称');
-            await fetch('/api/wifi/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ssid, pass }) });
-            alert('Wi-Fi 配置已保存，ESP32 正在尝试连接！');
+            try {
+                const res = await fetch('/api/wifi/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ssid, pass }) });
+                if (res.ok) {
+                    alert('Wi-Fi 配置已保存，ESP32 正在尝试连接！\n\n【重要提示】\n连接成功后设备将立刻自动关闭 RemoteMapper-AP 热点以优化功耗与发热。\n请将手机/电脑切换至同一家庭网络，使用路由器分配的局域网 IP 或统一域名：\nhttp://remotemapper.local\n访问后台。');
+                } else {
+                    alert('保存失败，请检查设备状态');
+                }
+            } catch(e) {
+                alert('保存并提交出错: ' + e.message);
+            }
         }
 
         async function saveApConfig() {

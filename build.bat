@@ -6,6 +6,13 @@ echo ======================================================================
 echo          RemoteMapper-ESP32 Multi-Target Firmware Builder
 echo ======================================================================
 
+:: Determine platformio executable
+set "PIO=pio"
+where pio >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    set "PIO=python -m platformio"
+)
+
 :: Determine esptool executable
 set "ESPTOOL=%~dp0RemoteMapper-Flasher\tools\esptool.exe"
 if not exist "%ESPTOOL%" (
@@ -45,7 +52,7 @@ exit /b 1
 :BUILD_ALL
 echo [BUILD] Compiling all 3 firmware targets (N16R8, N8R2, N4R2)...
 echo ----------------------------------------------------------------------
-python -m platformio run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
+%PIO% run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Build failed!
     exit /b %ERRORLEVEL%
@@ -68,21 +75,21 @@ goto :BUILD_SUMMARY
 
 :BUILD_N16R8
 echo [BUILD] Compiling esp32s3_n16r8...
-python -m platformio run -e esp32s3_n16r8
+%PIO% run -e esp32s3_n16r8
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n16r8 N16R8
 goto :BUILD_SUMMARY
 
 :BUILD_N8R2
 echo [BUILD] Compiling esp32s3_n8r2...
-python -m platformio run -e esp32s3_n8r2
+%PIO% run -e esp32s3_n8r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n8r2 N8R2
 goto :BUILD_SUMMARY
 
 :BUILD_N4R2
 echo [BUILD] Compiling esp32s3_n4r2...
-python -m platformio run -e esp32s3_n4r2
+%PIO% run -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n4r2 N4R2
 goto :BUILD_SUMMARY

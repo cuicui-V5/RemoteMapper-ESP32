@@ -19,12 +19,14 @@ static uint32_t         s_last_sta_check = 0;
 static bool             s_wifi_enabled = true;
 static bool             s_ap_running = false;
 static bool             s_mdns_started = false;
+static uint32_t         s_sta_disconnected_since = 0;
 
 static void wifi_start_ap(const String& ap_pass) {
     if (s_ap_running) {
         s_dns_server.stop();
         WiFi.softAPdisconnect(false);
     }
+    WiFi.mode(s_sta_configured ? WIFI_AP_STA : WIFI_AP);
     WiFi.softAPConfig(s_ap_ip, s_ap_ip, s_ap_netmask);
     if (ap_pass.length() >= 8) {
         WiFi.softAP(AP_SSID, ap_pass.c_str());
@@ -36,6 +38,16 @@ static void wifi_start_ap(const String& ap_pass) {
     s_dns_server.setErrorReplyCode(DNSReplyCode::NoError);
     s_dns_server.start(DNS_PORT, "*", s_ap_ip);
     s_ap_running = true;
+}
+
+static void wifi_stop_ap(void) {
+    if (!s_ap_running) return;
+    s_dns_server.stop();
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    s_ap_running = false;
+    app_log("WIFI", "STA connected! SoftAP '%s' closed to optimize power.", AP_SSID);
+    app_log("WIFI", "Access Web UI via: http://%s or http://%s.local", WiFi.localIP().toString().c_str(), MDNS_HOSTNAME);
 }
 
 static void wifi_apply_config(void) {
@@ -113,13 +125,21 @@ void wifi_manager_task(void) {
     }
 
     uint32_t now = millis();
-    if (s_sta_configured && (now - s_last_sta_check > 5000)) {
+    if (s_sta_configured && (now - s_last_sta_check > 1000)) {
         s_last_sta_check = now;
-        if (WiFi.status() == WL_CONNECTED) {
-            static bool s_logged_connected = false;
-            if (!s_logged_connected) {
-                app_log("WIFI", "Connected to Home Wi-Fi! Local IP: %s", WiFi.localIP().toString().c_str());
-                s_logged_connected = true;
+        if (WiFi.status() == WL_CONNECTED && WiFi.localIP()[0] != 0) {
+            s_sta_disconnected_since = 0;
+            if (s_ap_running) {
+                wifi_stop_ap();
+            }
+        } else {
+            // STA not connected
+            if (s_sta_disconnected_since == 0) {
+                s_sta_disconnected_since = now;
+            } else if ((now - s_sta_disconnected_since > 15000) && !s_ap_running) {
+                // Disconnected for more than 15 seconds, fail-safe re-enable AP mode
+                app_log("WIFI", "Home Wi-Fi disconnected (>15s). Re-enabling AP mode for configuration...");
+                wifi_start_ap(s_prefs.getString("ap_pass", ""));
             }
         }
     }
@@ -127,6 +147,7 @@ void wifi_manager_task(void) {
 
 String wifi_manager_get_ap_ip(void) {
     if (!s_wifi_enabled) return "Disabled";
+    if (!s_ap_running) return "已关闭(省电模式)";
     return WiFi.softAPIP().toString();
 }
 
@@ -136,6 +157,10 @@ String wifi_manager_get_sta_ip(void) {
         return WiFi.localIP().toString();
     }
     return "Disconnected";
+}
+
+String wifi_manager_get_mdns_url(void) {
+    return "http://" MDNS_HOSTNAME ".local";
 }
 
 bool wifi_manager_is_sta_connected(void) {
@@ -180,9 +205,11 @@ bool wifi_manager_save_sta_config(const String& ssid, const String& password) {
     s_prefs.putString("ssid", ssid);
     s_prefs.putString("pass", password);
     s_sta_configured = true;
+    s_sta_disconnected_since = 0;
 
     app_log("WIFI", "Saved new Wi-Fi credentials for: %s, connecting...", ssid.c_str());
     WiFi.disconnect();
+    WiFi.mode(s_ap_running ? WIFI_AP_STA : WIFI_STA);
     WiFi.begin(ssid.c_str(), password.c_str());
     return true;
 }
@@ -200,13 +227,17 @@ bool wifi_manager_save_ap_config(const String& ap_password) {
     }
     s_prefs.putString("ap_pass", p);
 
-    WiFi.softAPConfig(s_ap_ip, s_ap_ip, s_ap_netmask);
-    if (p.length() >= 8) {
-        WiFi.softAP(AP_SSID, p.c_str());
-        app_log("WIFI", "AP reconfigured: %s (WPA2-PSK)", AP_SSID);
+    if (s_ap_running) {
+        WiFi.softAPConfig(s_ap_ip, s_ap_ip, s_ap_netmask);
+        if (p.length() >= 8) {
+            WiFi.softAP(AP_SSID, p.c_str());
+            app_log("WIFI", "AP reconfigured: %s (WPA2-PSK)", AP_SSID);
+        } else {
+            WiFi.softAP(AP_SSID, "");
+            app_log("WIFI", "AP reconfigured: %s (Open Network)", AP_SSID);
+        }
     } else {
-        WiFi.softAP(AP_SSID, "");
-        app_log("WIFI", "AP reconfigured: %s (Open Network)", AP_SSID);
+        app_log("WIFI", "AP password saved: %s", p.length() >= 8 ? "(WPA2-PSK)" : "(Open Network)");
     }
     return true;
 }

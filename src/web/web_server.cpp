@@ -35,6 +35,8 @@ static void handle_status() {
     doc["sta_ip"] = wifi_manager_get_sta_ip();
     doc["sta_connected"] = wifi_manager_is_sta_connected();
     doc["ap_ssid"] = AP_SSID;
+    doc["ap_running"] = wifi_manager_is_ap_running();
+    doc["mdns_url"] = wifi_manager_get_mdns_url();
     doc["wifi_enabled"] = wifi_manager_get_enabled();
     String ap_pass = wifi_manager_get_ap_pass();
     doc["ap_secured"] = (ap_pass.length() >= 8);

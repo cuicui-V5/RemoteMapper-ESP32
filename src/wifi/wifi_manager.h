@@ -5,6 +5,7 @@
 #include <Arduino.h>
 
 #define AP_SSID         "RemoteMapper-AP"
+#define MDNS_HOSTNAME   "remotemapper"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +18,7 @@ bool   wifi_manager_set_enabled(bool enabled);
 bool   wifi_manager_is_ap_running(void);
 String wifi_manager_get_ap_ip(void);
 String wifi_manager_get_sta_ip(void);
+String wifi_manager_get_mdns_url(void);
 bool   wifi_manager_is_sta_connected(void);
 int8_t wifi_manager_get_sta_rssi(void);
 String wifi_manager_scan_json(void);

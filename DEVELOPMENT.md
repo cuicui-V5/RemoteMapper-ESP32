@@ -214,14 +214,15 @@ ESP32-S3 原生 USB OTG 在枚举时向操作系统呈现标准**复合多接口
 
 # 八. Wi-Fi 双模网络与嵌入式 Web 控制台
 
-### 1. 网络拓扑
+### 1. 网络拓扑与低功耗调度
 * **AP 模式（配置热点）**：
-  - SSID: `RemoteMapper-AP` (开放免密)
+  - SSID: `RemoteMapper-AP` (开放免密或 WPA2 加密)
   - IP: `192.168.4.1` (子网掩码 `255.255.255.0`)
   - DNS Captive Portal: 自动拦截探测域名并重定向到 `192.168.4.1`。
+  - **动态休眠降功耗**：一旦 STA 成功连上路由器并获取 IP，立刻自动关闭 SoftAP 射频发射以降低发热与功耗；若路由器断网超过 15 秒则自动重新开启 AP 防失联。
 * **STA 模式（局域网接入）**：
   - 连接路由器 2.4GHz Wi-Fi；
-  - mDNS: 局域网访问地址为 **`http://remotemapper.local`**。
+  - mDNS: 局域网统一访问地址为 **`http://remotemapper.local`**。
 
 ### 2. Web 前端架构 (`src/web/web_ui.h`)
 - **纯原生单页架构**：HTML/CSS/JS 经 PROGMEM 嵌入 Flash，零外部 CDN 依赖；
