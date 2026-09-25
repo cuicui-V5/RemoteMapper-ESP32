@@ -1,6 +1,7 @@
 .pio
 .vscode
 .idea
+.venv
 *.pyc
 __pycache__/
 build/
@@ -9,6 +10,9 @@ build/
 *.map
 *.hex
 *.log
+
+# Build artifacts
+compile_commands.json
 
 # Archives & release packages
 *.7z

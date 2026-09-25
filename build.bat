@@ -6,6 +6,14 @@ echo ======================================================================
 echo          RemoteMapper-ESP32 Multi-Target Firmware Builder
 echo ======================================================================
 
+:: Prefer local venv Python if present, otherwise fall back to system python
+set "PY=python"
+if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
+
+:: Force UTF-8 so PlatformIO's Unicode console output survives cp1252 consoles
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
+
 :: Determine esptool executable
 set "ESPTOOL=%~dp0RemoteMapper-Flasher\tools\esptool.exe"
 if not exist "%ESPTOOL%" (
@@ -45,7 +53,7 @@ exit /b 1
 :BUILD_ALL
 echo [BUILD] Compiling all 3 firmware targets (N16R8, N8R2, N4R2)...
 echo ----------------------------------------------------------------------
-python -m platformio run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
+%PY% -m platformio run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Build failed!
     exit /b %ERRORLEVEL%
@@ -68,21 +76,21 @@ goto :BUILD_SUMMARY
 
 :BUILD_N16R8
 echo [BUILD] Compiling esp32s3_n16r8...
-python -m platformio run -e esp32s3_n16r8
+%PY% -m platformio run -e esp32s3_n16r8
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n16r8 N16R8
 goto :BUILD_SUMMARY
 
 :BUILD_N8R2
 echo [BUILD] Compiling esp32s3_n8r2...
-python -m platformio run -e esp32s3_n8r2
+%PY% -m platformio run -e esp32s3_n8r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n8r2 N8R2
 goto :BUILD_SUMMARY
 
 :BUILD_N4R2
 echo [BUILD] Compiling esp32s3_n4r2...
-python -m platformio run -e esp32s3_n4r2
+%PY% -m platformio run -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n4r2 N4R2
 goto :BUILD_SUMMARY
@@ -93,14 +101,18 @@ set "CUR_TAG=%~2"
 set "CUR_BUILD=%~dp0.pio\build\%CUR_ENV%"
 set "CUR_FULL=%~dp0RemoteMapper-Flasher\bin\RemoteMapper_ESP32S3_%CUR_TAG%_full.bin"
 set "CUR_APP=%~dp0RemoteMapper-Flasher\bin\RemoteMapper_ESP32S3_%CUR_TAG%_app.bin"
+set "CUR_BOOT=%~dp0RemoteMapper-Flasher\bin\RemoteMapper_ESP32S3_%CUR_TAG%_bootloader.bin"
+set "CUR_PART=%~dp0RemoteMapper-Flasher\bin\RemoteMapper_ESP32S3_%CUR_TAG%_partitions.bin"
 
-echo - Packaging %CUR_TAG% (0x0 full flash image)...
+echo - Packaging %CUR_TAG% (full image + segmented upgrade files)...
 "%ESPTOOL%" --chip esp32s3 merge_bin -o "%CUR_FULL%" --flash_mode keep --flash_freq keep --flash_size keep 0x0 "%CUR_BUILD%\bootloader.bin" 0x8000 "%CUR_BUILD%\partitions.bin" 0xe000 "%BOOT_APP0%" 0x10000 "%CUR_BUILD%\firmware.bin"
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Failed to merge %CUR_TAG%!
     exit /b 1
 )
 copy /y "%CUR_BUILD%\firmware.bin" "%CUR_APP%" >nul
+copy /y "%CUR_BUILD%\bootloader.bin" "%CUR_BOOT%" >nul
+copy /y "%CUR_BUILD%\partitions.bin" "%CUR_PART%" >nul
 exit /b 0
 
 :BUILD_SUMMARY

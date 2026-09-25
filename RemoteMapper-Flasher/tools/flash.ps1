@@ -10,6 +10,7 @@ if (-not (Test-Path "$scriptDir\bin")) {
 $binDir = "$scriptDir\bin"
 $toolsDir = "$scriptDir\tools"
 $esptool = "$toolsDir\esptool.exe"
+$bootApp0 = "$toolsDir\boot_app0.bin"
 
 function Show-Header {
     Clear-Host
@@ -19,6 +20,9 @@ function Show-Header {
     Write-Host "说明："
     Write-Host "  本工具已内置完整烧录环境与全型号预编译固件，电脑无需安装任何开发环境。"
     Write-Host "  支持 ESP32-S3 全系列硬件开发板（N16R8 / N8R2 / N4R2）。"
+    Write-Host ""
+    Write-Host "  默认使用【升级模式】：只写 bootloader / 分区表 / App 区域，"
+    Write-Host "  不影响 NVS 存储区，Wi-Fi、AP、蓝牙配对、按键映射全部保留！" -ForegroundColor Green
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host ""
 }
@@ -31,7 +35,7 @@ function Wait-Enter {
 
 # --- Step 1: 硬件物理连接 ---
 Show-Header
-Write-Host "【第 1 步 / 共 4 步】硬件物理连接" -ForegroundColor Magenta
+Write-Host "【第 1 步 / 共 5 步】硬件物理连接" -ForegroundColor Magenta
 Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "1. 请准备一根具备【数据传输功能】的 Type-C 数据线（切勿使用纯充电线）。"
 Write-Host "2. 将数据线一端连接到 ESP32-S3 开发板的【USB / OTG】接口："
@@ -43,7 +47,7 @@ Wait-Enter "确认硬件连接就绪后，按回车键继续..."
 
 # --- Step 2: 进入刷机模式 ---
 Show-Header
-Write-Host "【第 2 步 / 共 4 步】进入刷机模式 (Bootloader 模式)" -ForegroundColor Magenta
+Write-Host "【第 2 步 / 共 5 步】进入刷机模式 (Bootloader 模式)" -ForegroundColor Magenta
 Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "为了确保芯片 100% 能够被烧录工具识别，请按照以下顺序操作开发板上的物理按键："
 Write-Host ""
@@ -62,7 +66,7 @@ Wait-Enter "完成上述按键操作后，按回车键继续..."
 function Select-Model {
     while ($true) {
         Show-Header
-        Write-Host "【第 3 步 / 共 4 步】选择您的 ESP32-S3 硬件规格" -ForegroundColor Magenta
+        Write-Host "【第 3 步 / 共 5 步】选择您的 ESP32-S3 硬件规格" -ForegroundColor Magenta
         Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
         Write-Host "请根据您购买的开发板型号选择对应固件（如果不清楚，普通开发板默认选 1）："
         Write-Host ""
@@ -86,19 +90,25 @@ function Select-Model {
         if ($choice -eq "1") {
             return @{
                 Name = "ESP32-S3 N16R8 (16MB Flash, 8MB PSRAM)"
-                Bin = "RemoteMapper_ESP32S3_N16R8_full.bin"
+                Bootloader = "RemoteMapper_ESP32S3_N16R8_bootloader.bin"
+                Partitions = "RemoteMapper_ESP32S3_N16R8_partitions.bin"
+                App = "RemoteMapper_ESP32S3_N16R8_app.bin"
             }
         }
         if ($choice -eq "2") {
             return @{
                 Name = "ESP32-S3 N8R2 (8MB Flash, 2MB PSRAM)"
-                Bin = "RemoteMapper_ESP32S3_N8R2_full.bin"
+                Bootloader = "RemoteMapper_ESP32S3_N8R2_bootloader.bin"
+                Partitions = "RemoteMapper_ESP32S3_N8R2_partitions.bin"
+                App = "RemoteMapper_ESP32S3_N8R2_app.bin"
             }
         }
         if ($choice -eq "3") {
             return @{
                 Name = "ESP32-S3 N4R2 (4MB Flash, 2MB PSRAM)"
-                Bin = "RemoteMapper_ESP32S3_N4R2_full.bin"
+                Bootloader = "RemoteMapper_ESP32S3_N4R2_bootloader.bin"
+                Partitions = "RemoteMapper_ESP32S3_N4R2_partitions.bin"
+                App = "RemoteMapper_ESP32S3_N4R2_app.bin"
             }
         }
         Write-Host "输入无效，请重新输入！" -ForegroundColor Red
@@ -108,15 +118,50 @@ function Select-Model {
 
 $model = Select-Model
 
-# --- Step 4: 串口检测与选择 ---
+# --- Step 4: 选择刷机模式 ---
+function Select-FlashMode {
+    while ($true) {
+        Show-Header
+        Write-Host "【第 4 步 / 共 5 步】选择刷机模式" -ForegroundColor Magenta
+        Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host "已选硬件规格: " -NoNewline
+        Write-Host $model.Name -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  [1] 升级模式（推荐）：保留 Wi-Fi/AP/蓝牙配对/按键映射，仅更新固件" -ForegroundColor Green
+        Write-Host "  [2] 全量擦除模式：擦除全部 Flash（含 NVS 配置）后写入，等同于恢复出厂" -ForegroundColor Yellow
+        Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host ""
+        $choice = Read-Host "请输入编号 [1-2] (直接按回车默认为 1)"
+        if ($null -eq $choice -or $choice.Trim() -eq "") {
+            $choice = "1"
+        } else {
+            $choice = $choice.Trim()
+        }
+        if ($choice -ieq "Q") { exit 0 }
+        if ($choice -eq "1") {
+            return @{ Mode = "升级模式"; Erase = $false }
+        }
+        if ($choice -eq "2") {
+            return @{ Mode = "全量擦除模式"; Erase = $true }
+        }
+        Write-Host "输入无效，请重新输入！" -ForegroundColor Red
+        Start-Sleep -Seconds 1
+    }
+}
+
+$flashMode = Select-FlashMode
+
+# --- Step 5: 串口检测与选择 ---
 function Select-Port {
     param($modelName)
     while ($true) {
         Show-Header
-        Write-Host "【第 4 步 / 共 4 步】串口检测与确认" -ForegroundColor Magenta
+        Write-Host "【第 5 步 / 共 5 步】串口检测与确认" -ForegroundColor Magenta
         Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
         Write-Host "已选硬件规格: " -NoNewline
         Write-Host $modelName -ForegroundColor Green
+        Write-Host "刷卡模式: " -NoNewline
+        Write-Host $flashMode.Mode -ForegroundColor Green
         Write-Host "正在扫描电脑当前可用的串口设备，请稍候...`n"
 
         $ports = @([System.IO.Ports.SerialPort]::GetPortNames() | Where-Object { $_ -match '^COM\d+$' } | Sort-Object -Unique)
@@ -186,14 +231,20 @@ function Select-Port {
 
 $port = Select-Port -modelName $model.Name
 
-# --- Step 5: 烧录前确认与执行 ---
+# --- 烧录执行 ---
 function Invoke-FlashProcess {
     param($model, $port)
 
     while ($true) {
-        $binPath = "$binDir\$($model.Bin)"
-        if (-not (Test-Path $binPath)) {
-            Write-Host "`n[错误] 固件文件不存在: $binPath" -ForegroundColor Red
+        $bootloaderPath = "$binDir\$($model.Bootloader)"
+        $partitionsPath = "$binDir\$($model.Partitions)"
+        $appPath = "$binDir\$($model.App)"
+        if (-not (Test-Path $bootloaderPath) -or -not (Test-Path $partitionsPath) -or -not (Test-Path $appPath)) {
+            Write-Host "`n[错误] 固件文件缺失，请先运行 build.bat 生成分段镜像。" -ForegroundColor Red
+            Write-Host "  缺失检查："
+            foreach ($f in @($bootloaderPath, $partitionsPath, $appPath)) {
+                Write-Host "    $(if (Test-Path $f) { '[OK]' } else { '[缺失]' }) $f" -ForegroundColor $(if (Test-Path $f) { 'Green' } else { 'Red' })
+            }
             Wait-Enter "按回车键退出..."
             exit 1
         }
@@ -209,8 +260,15 @@ function Invoke-FlashProcess {
         Write-Host "================================================================================" -ForegroundColor Cyan
         Write-Host "  目标芯片: " -NoNewline; Write-Host "ESP32-S3" -ForegroundColor White
         Write-Host "  硬件规格: " -NoNewline; Write-Host $model.Name -ForegroundColor White
-        Write-Host "  固件镜像: " -NoNewline; Write-Host $model.Bin -ForegroundColor White
+        Write-Host "  刷机模式: " -NoNewline; Write-Host $flashMode.Mode -ForegroundColor Green
         Write-Host "  通信串口: " -NoNewline; Write-Host $port -ForegroundColor Green
+        Write-Host "  烧录内容: " -NoNewline
+        if ($flashMode.Erase) {
+            Write-Host "擦除全部 Flash + " -ForegroundColor Yellow -NoNewline
+        }
+        Write-Host "bootloader(0x0) + 分区表(0x8000) + otadata(0xe000) + App(0x10000)"
+        Write-Host "  NVS 配置区(0x9000): " -NoNewline
+        Write-Host $(if ($flashMode.Erase) { "将被擦除" } else { "保持不变（配置保留）" }) -ForegroundColor $(if ($flashMode.Erase) { 'Yellow' } else { 'Green' })
         Write-Host "  烧录波特率: " -NoNewline; Write-Host "460800" -ForegroundColor White
         Write-Host "================================================================================" -ForegroundColor Cyan
         Wait-Enter "确认无误后，按回车键立即开始写入固件..."
@@ -223,12 +281,22 @@ function Invoke-FlashProcess {
             "--port", $port,
             "--baud", "460800",
             "--before", "default_reset",
-            "--after", "hard_reset",
+            "--after", "hard_reset"
+        )
+
+        if ($flashMode.Erase) {
+            $flashArgs += @("erase_flash")
+        }
+
+        $flashArgs += @(
             "write_flash",
             "--flash_mode", "keep",
             "--flash_freq", "keep",
             "--flash_size", "keep",
-            "0x0", $binPath
+            "0x0", $bootloaderPath,
+            "0x8000", $partitionsPath,
+            "0xe000", $bootApp0,
+            "0x10000", $appPath
         )
 
         & $esptool $flashArgs
@@ -243,15 +311,16 @@ function Invoke-FlashProcess {
             Write-Host "【设备后续配置与使用指南】：" -ForegroundColor Yellow
             Write-Host ""
             Write-Host "  1. 请按一下开发板上的【RST】按键（或重新插拔一次 USB 线），使设备正常启动；"
-            Write-Host "  2. 打开手机或电脑的 WiFi 列表，搜索并连接热点："
-            Write-Host "       WiFi 热点名称：RemoteMapper-AP" -ForegroundColor Cyan
-            Write-Host "       初始连接密码：无（开放热点，直接点击连接）" -ForegroundColor Cyan
-            Write-Host "  3. 连接成功后，打开浏览器访问控制后台："
-            Write-Host "       http://192.168.4.1" -ForegroundColor Yellow
-            Write-Host "  4. 在后台界面中，您可以："
-            Write-Host "       - 扫描并绑定您的蓝牙遥控器；"
-            Write-Host "       - 配置多层级自定义按键映射；"
-            Write-Host "       - 在系统设置中为 WiFi AP 设置安全密码。"
+            if ($flashMode.Erase) {
+                Write-Host "  2. 【全量擦除模式】已清空 NVS，设备如同新机："
+                Write-Host "       打开 WiFi 搜索并连接热点 RemoteMapper-AP（无密码）；"
+                Write-Host "       进入后台 http://192.168.4.1 重新绑定遥控器 / 配置 WiFi / 按键映射。"
+            } else {
+                Write-Host "  2. 【升级模式】已保留原有 NVS 配置："
+                Write-Host "       Wi-Fi、AP、蓝牙配对、按键映射全部保留，可直接使用；"
+                Write-Host "       旧版本固件首次升级会自动完成配置迁移（configVersion V1）。"
+            }
+            Write-Host "  3. 后续固件更新请优先使用后台「系统 → 固件升级」在线 OTA，无需再次插线刷机。"
             Write-Host "================================================================================" -ForegroundColor Green
             Write-Host ""
             Wait-Enter "刷机已全部完成，按回车键退出..."
@@ -268,7 +337,7 @@ function Invoke-FlashProcess {
             Write-Host "  4. 【接口插错】：开发板若有两个 Type-C 接口，请务必插在 USB 口，不要插在 COM/UART 口。"
             Write-Host "================================================================================" -ForegroundColor Red
             Write-Host "  [1] 重新尝试烧录"
-            Write-Host "  [2] 重新选择硬件型号与串口"
+            Write-Host "  [2] 重新选择硬件型号、模式与串口"
             Write-Host "  [Q] 退出程序"
             Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
             Write-Host ""
@@ -277,6 +346,7 @@ function Invoke-FlashProcess {
             if ($ans -ieq "Q") { exit 1 }
             if ($ans -eq "2") {
                 $script:model = Select-Model
+                $script:flashMode = Select-FlashMode
                 $script:port = Select-Port -modelName $script:model.Name
             }
         }
