@@ -14,8 +14,21 @@ if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 
-:: PlatformIO executable (prefer venv/system python -m platformio)
-set "PIO=%PY% -m platformio"
+:: Determine PlatformIO executable runner
+set "PIO=pio"
+if exist "%~dp0.venv\Scripts\platformio.exe" (
+    set "PIO=%~dp0.venv\Scripts\platformio.exe"
+) else (
+    where pio >nul 2>nul
+    if %ERRORLEVEL% NEQ 0 (
+        where platformio >nul 2>nul
+        if %ERRORLEVEL% EQU 0 (
+            set "PIO=platformio"
+        ) else (
+            set "PIO=%PY% -m platformio"
+        )
+    )
+)
 
 :: Determine esptool executable
 set "ESPTOOL=%~dp0RemoteMapper-Flasher\tools\esptool.exe"

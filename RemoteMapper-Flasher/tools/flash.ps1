@@ -99,7 +99,9 @@ function Select-Model {
         if ($choice -eq "2") {
             return @{
                 Name = "ESP32-S3 N8R8 (8MB Flash, 8MB PSRAM)"
-                Bin = "RemoteMapper_ESP32S3_N8R8_full.bin"
+                Bootloader = "RemoteMapper_ESP32S3_N8R8_bootloader.bin"
+                Partitions = "RemoteMapper_ESP32S3_N8R8_partitions.bin"
+                App = "RemoteMapper_ESP32S3_N8R8_app.bin"
             }
         }
         if ($choice -eq "3") {

@@ -411,8 +411,11 @@ static void handle_config_import() {
     }
     String err = config_backup_import(body);
     if (err.length() == 0) {
+        s_server.sendHeader("Connection", "close");
         s_server.send(200, "application/json",
                       "{\"status\":\"ok\",\"message\":\"配置已恢复，正在重启设备...\",\"reboot_required\":true}");
+        delay(300);
+        ESP.restart();
     } else {
         s_server.send(400, "application/json",
                       String("{\"status\":\"error\",\"message\":\"恢复失败: ") +
