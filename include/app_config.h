@@ -65,6 +65,16 @@ extern "C" {
 #define DEFAULT_VOICE_MODIFIER    0x40      // KEY_MOD_RALT
 #define DEFAULT_VOICE_KEY         0x36      // HID Usage for Comma ','
 
+// ==========================================
+// 5. Wi-Fi Power Management
+// ==========================================
+// Policy values are defined by wifi_policy_t in src/wifi/wifi_manager.h
+// (WIFI_POLICY_ALWAYS_ON=0, WIFI_POLICY_ON_DEMAND=1, WIFI_POLICY_DISABLED=2).
+// The defaults below stay plain integers so this C-safe header stays decoupled.
+#define WIFI_DEFAULT_POLICY       1         // default = WIFI_POLICY_ON_DEMAND
+#define WIFI_DEFAULT_TIMEOUT_MIN  5         // Default ON_DEMAND idle timeout (minutes)
+#define WIFI_TIMEOUT_NEVER        0         // 0 = keep radio on until manual off
+
 #ifdef __cplusplus
 }
 #endif

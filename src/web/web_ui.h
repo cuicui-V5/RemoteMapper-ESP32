@@ -593,6 +593,57 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 </div>
             </div>
 
+            <!-- Config Backup / Restore (full system, incl. WiFi) -->
+            <div class="card">
+                <div class="card-header">
+                    <div>
+                        <span style="font-size: 16px;">系统配置备份与恢复</span>
+                        <div style="font-size: 12px; color: var(--text-muted); font-weight: normal; margin-top: 4px;">
+                            完整备份/恢复 Wi-Fi、接入点、节能策略、超时与按键映射。<span style="color: #fbbf24;">恢复后设备会自动重启。</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="grid-2">
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <b style="color: var(--text-main); font-size: 14px; display: block; margin-bottom: 8px;">安全备份（脱敏）</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                Wi-Fi 与 AP 密码以 <code>********</code> 打码显示，可放心留存或截图分享。<br>
+                                <span style="color: #fbbf24;">注意：脱敏备份无法用于恢复密码，请配合“完整备份”使用。</span>
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button class="btn btn-outline" style="font-size: 13px; width: 100%;" onclick="exportSystemConfig(false)">导出安全备份 (.json)</button>
+                        </div>
+                    </div>
+                    <div style="background: #090d16; border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between;">
+                        <div>
+                            <b style="color: var(--text-main); font-size: 14px; display: block; margin-bottom: 8px;">完整备份</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                包含 Wi-Fi/AP 密码明文 + 全部策略与按键映射，可用于完整还原。<br>
+                                <span style="color: #f87171;">请妥善保管，切勿随意分享或上传公共平台。</span>
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <button class="btn" style="font-size: 13px; width: 100%;" onclick="exportSystemConfig(true)">导出完整备份 (.json)</button>
+                        </div>
+                    </div>
+                    <div style="background: #090d16; border: 1px solid rgba(52, 211, 153, 0.35); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; grid-column: 1 / -1;">
+                        <div>
+                            <b style="color: #34d399; font-size: 14px; display: block; margin-bottom: 8px;">恢复配置</b>
+                            <p style="font-size: 13px; color: var(--text-muted); line-height: 1.6;">
+                                从 <code>.json</code> 备份还原全部配置并自动重启。<br>
+                                <span style="color: #fbbf24;">蓝牙配对无法通过文件备份/还原（与具体遥控器加密绑定），如有需要请重新配对。</span>
+                            </p>
+                        </div>
+                        <div style="margin-top: 16px;">
+                            <input type="file" id="sysconfig-file-input" accept=".json" style="display:none;" onchange="importSystemConfig(event)">
+                            <button class="btn btn-outline" style="font-size: 13px; width: 100%; color: #34d399; border-color: rgba(52, 211, 153, 0.4);" onclick="document.getElementById('sysconfig-file-input').click()">从备份文件恢复配置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Section 3: Reset Operations -->
             <div class="card">
                 <div class="card-header">
@@ -707,6 +758,34 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             当前固件支持 UAC 1.0 USB 麦克风录音设备与标准 HID 键盘/多媒体复合注入。
                         </p>
                         <button class="btn btn-danger" style="width: 100%;" onclick="restartDevice()">重启设备</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <span>固件升级 (OTA)</span>
+                            <span id="ota-mode-badge" style="font-size: 11px; padding: 2px 8px; border-radius: 6px; background: rgba(16,185,129,0.15); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3);">在线升级</span>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); line-height: 1.6; margin-bottom: 10px;">
+                            通过 Wi-Fi 在线升级固件，<b style="color: #34d399;">不会影响</b> Wi-Fi / AP / 蓝牙配对 / 按键映射等已有配置。<br>
+                            <span style="font-size: 12px;">
+                                当前版本 <span id="ota-cur-version" style="color: var(--accent-cyan); font-weight: 600;">--</span>
+                                <span id="ota-run-label"></span>
+                            </span>
+                        </div>
+                        <input type="file" id="ota-file-input" accept=".bin,.fw" style="display:none;" onchange="startOtaUpdate(event)">
+                        <button class="btn" style="width: 100%;" id="ota-pick-btn" onclick="document.getElementById('ota-file-input').click()">选择固件文件 (.bin) 并升级</button>
+                        <div id="ota-progress" style="display:none; margin-top: 14px;">
+                            <div style="height: 10px; background: #0b0f17; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;">
+                                <div id="ota-progress-bar" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green)); transition: width .3s;"></div>
+                            </div>
+                            <div style="font-size: 12px; color: var(--text-muted); margin-top: 6px; display: flex; justify-content: space-between;">
+                                <span id="ota-progress-text">准备上传...</span>
+                                <span id="ota-progress-pct">0%</span>
+                            </div>
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px; line-height: 1.6;">
+                            ⚠️ 升级期间请勿断电、勿关闭本页面，保持与设备处于同一网络。写入完成后设备自动重启并恢复服务（约 20~40 秒）。升级失败不影响当前运行的固件。
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2516,6 +2595,116 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             alert('正在重启...');
         }
 
+        async function refreshOtaStatus() {
+            try {
+                const st = await (await fetch('/api/ota/status')).json();
+                const elVer = document.getElementById('ota-cur-version');
+                if (elVer) elVer.textContent = (st.version || '--') + (st.supported ? '' : '');
+                const badge = document.getElementById('ota-mode-badge');
+                if (badge) {
+                    if (!st.supported) {
+                        badge.textContent = '不支持';
+                        badge.style.color = '#f87171';
+                        badge.style.borderColor = 'rgba(239,68,68,0.4)';
+                        badge.style.background = 'rgba(239,68,68,0.12)';
+                    } else {
+                        badge.textContent = '在线升级';
+                    }
+                }
+                const run = document.getElementById('ota-run-label');
+                if (run && st.running_label) run.textContent = ' · 分区 ' + st.running_label;
+                const btn = document.getElementById('ota-pick-btn');
+                if (btn && !st.supported) {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.5';
+                }
+            } catch(e) {}
+        }
+
+        function setOtaProgress(loaded, total) {
+            const bar = document.getElementById('ota-progress-bar');
+            const pct = document.getElementById('ota-progress-pct');
+            const txt = document.getElementById('ota-progress-text');
+            if (!bar) return;
+            if (!total) {
+                bar.style.width = '100%';
+                if (pct) pct.textContent = '...';
+                return;
+            }
+            const p = Math.min(100, Math.round(loaded / total * 100));
+            bar.style.width = p + '%';
+            if (pct) pct.textContent = p + '%';
+            if (txt && total >= 1048576) txt.textContent = (loaded / 1048576).toFixed(2) + ' / ' + (total / 1048576).toFixed(2) + ' MB';
+        }
+
+        function resetOtaUi() {
+            const prog = document.getElementById('ota-progress');
+            if (prog) prog.style.display = 'none';
+            const btn = document.getElementById('ota-pick-btn');
+            if (btn) btn.disabled = false;
+            const inp = document.getElementById('ota-file-input');
+            if (inp) inp.value = '';
+        }
+
+        async function startOtaUpdate(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!/\.(bin|fw)$/i.test(file.name)) {
+                showToast('请选择固件 .bin 文件', true);
+                e.target.value = '';
+                return;
+            }
+            try {
+                const st = await (await fetch('/api/ota/status')).json();
+                if (!st.supported) {
+                    showToast('当前型号固件不支持在线升级', true);
+                    e.target.value = '';
+                    return;
+                }
+            } catch(err) {
+                showToast('无法连接设备，请确认设备已联网', true);
+                e.target.value = '';
+                return;
+            }
+            if (!confirm(`确认上传固件「${file.name}」（${(file.size / 1048576).toFixed(2)} MB）？\n\n升级将保留 Wi-Fi / AP / 蓝牙配对 / 按键映射，完成后设备自动重启。`)) {
+                e.target.value = '';
+                return;
+            }
+            const prog = document.getElementById('ota-progress');
+            const btn = document.getElementById('ota-pick-btn');
+            if (prog) prog.style.display = 'block';
+            if (btn) btn.disabled = true;
+            setOtaProgress(0, file.size);
+            document.getElementById('ota-progress-text').textContent = '正在上传...请勿关闭本页面';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/api/ota/upload');
+            xhr.upload.onprogress = evt => { if (evt.lengthComputable) setOtaProgress(evt.loaded, evt.total); };
+            xhr.onload = function() {
+                let d = null;
+                try { d = JSON.parse(xhr.responseText); } catch(e) {}
+                if (xhr.status >= 200 && xhr.status < 300 && d && d.success) {
+                    setOtaProgress(1, 1);
+                    document.getElementById('ota-progress-text').textContent = '固件写入完成，设备重启中...';
+                    showToast('固件升级成功，请稍候...');
+                    setTimeout(() => { try { location.reload(); } catch(e) {} }, 6000);
+                } else {
+                    showToast((d && d.message) || '固件升级失败，请重试', true);
+                    document.getElementById('ota-progress-text').textContent = '升级失败';
+                    resetOtaUi();
+                }
+            };
+            xhr.onerror = function() {
+                showToast('连接中断，升级失败（原固件不受影响）', true);
+                document.getElementById('ota-progress-text').textContent = '升级失败';
+                resetOtaUi();
+            };
+            xhr.onabort = function() { resetOtaUi(); };
+            const form = new FormData();
+            form.append('firmware', file, file.name);
+            xhr.send(form);
+        }
+
         function showToast(msg, isError = false) {
             let toast = document.getElementById('app-toast');
             if (!toast) {
@@ -2585,6 +2774,66 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     }
                 } catch(err) {
                     showToast('导入解析失败: ' + err.message, true);
+                } finally {
+                    e.target.value = '';
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Config Management: Export full system config backup
+        async function exportSystemConfig(full) {
+            if (full) {
+                if (!confirm('完整备份将包含 Wi-Fi 密码与 AP 密码明文！\n\n请确认导出后将妥善保管该文件，不随意分享。\n\n是否继续导出？')) {
+                    return;
+                }
+            }
+            try {
+                const res = await fetch('/api/config/export?mode=' + (full ? 'full' : 'safe'));
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const text = await res.text();
+                const blob = new Blob([text], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const now = new Date();
+                const pad = n => String(n).padStart(2, '0');
+                const dateStr = `${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+                a.href = url;
+                a.download = `RemoteMapper_${full ? 'Full' : 'Safe'}_Config_${dateStr}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(full ? '完整备份已导出（含明文密码）' : '安全备份已导出（密码已脱敏）');
+            } catch(e) {
+                showToast('备份导出失败: ' + e.message, true);
+            }
+        }
+
+        // Config Management: Import full system config backup
+        function importSystemConfig(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async function(evt) {
+                try {
+                    if (!confirm(`确定要从「${file.name}」恢复系统配置吗？\n\n将覆盖 Wi-Fi、热点、策略与按键映射，设备会立即重启。\n\n蓝牙配对不受影响。`)) {
+                        return;
+                    }
+                    const res = await fetch('/api/config/import', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: evt.target.result
+                    });
+                    const ret = await res.json();
+                    if (res.ok) {
+                        showToast('配置恢复成功，设备即将重启...');
+                        setTimeout(() => location.reload(), 2500);
+                    } else {
+                        showToast('配置恢复失败: ' + (ret.message || '服务器拒绝该备份'), true);
+                    }
+                } catch(err) {
+                    showToast('恢复解析失败: ' + err.message, true);
                 } finally {
                     e.target.value = '';
                 }
@@ -2665,6 +2914,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         setInterval(refreshLogs, 2000);
         loadKeymap();
         fetchStatus();
+        refreshOtaStatus();
     </script>
 </body>
 </html>

@@ -9,8 +9,14 @@
 #include "keymap/key_config_storage.h"
 #include "nvs/nvs_manager.h"
 #include "wol_manager.h"
+#include "ota/ota_manager.h"
+#include "config/config_backup.h"
 #include <WebServer.h>
 #include <ArduinoJson.h>
+
+#ifndef REMOTEMAPPER_OTA
+#define REMOTEMAPPER_OTA 0
+#endif
 
 static WebServer s_server(80);
 extern key_mapper_engine_t g_key_engine;
@@ -36,6 +42,10 @@ static void handle_status() {
     doc["sta_connected"] = wifi_manager_is_sta_connected();
     doc["ap_ssid"] = AP_SSID;
     doc["wifi_enabled"] = wifi_manager_get_enabled();
+    doc["wifi_policy"] = (int)wifi_manager_get_policy();
+    doc["wifi_policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+    doc["wifi_timeout_min"] = wifi_manager_get_timeout_min();
+    doc["wifi_radio_state"] = (int)wifi_manager_get_radio_state();
     String ap_pass = wifi_manager_get_ap_pass();
     doc["ap_secured"] = (ap_pass.length() >= 8);
     doc["ap_pass"] = ap_pass;
@@ -201,6 +211,63 @@ static void handle_system_restart() {
     ESP.restart();
 }
 
+static void handle_power_get() {
+    JsonDocument doc;
+    doc["policy"] = (int)wifi_manager_get_policy();
+    doc["policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+    doc["timeout_min"] = wifi_manager_get_timeout_min();
+    doc["radio_state"] = (int)wifi_manager_get_radio_state();
+    doc["radio_state_str"] = wifi_manager_state_str(wifi_manager_get_radio_state());
+    doc["wifi_enabled"] = wifi_manager_get_enabled();
+    doc["last_activity_sec"] = wifi_manager_get_last_activity_ms() / 1000;
+    String out;
+    serializeJson(doc, out);
+    s_server.send(200, "application/json", out);
+}
+
+static void handle_power_set() {
+    if (!s_server.hasArg("plain")) {
+        s_server.send(400, "application/json", "{\"error\":\"missing_body\"}");
+        return;
+    }
+    JsonDocument doc;
+    DeserializationError err = deserializeJson(doc, s_server.arg("plain"));
+    if (err) {
+        s_server.send(400, "application/json", "{\"error\":\"invalid_json\"}");
+        return;
+    }
+
+    bool policy_changed = false;
+    if (!doc["policy"].isNull()) {
+        int p = doc["policy"] | -1;
+        if (p < (int)WIFI_POLICY_ALWAYS_ON || p > (int)WIFI_POLICY_DISABLED) {
+            s_server.send(400, "application/json", "{\"error\":\"invalid_policy\",\"hint\":\"0=always_on,1=on_demand,2=disabled\"}");
+            return;
+        }
+        wifi_policy_t old_p = wifi_manager_get_policy();
+        if (wifi_manager_set_policy((wifi_policy_t)p)) {
+            policy_changed = (wifi_manager_get_policy() != old_p);
+        }
+    }
+    if (!doc["timeout_min"].isNull()) {
+        uint32_t t = doc["timeout_min"] | 0xFFFFFFFF;
+        if (!wifi_manager_set_timeout_min(t)) {
+            s_server.send(400, "application/json", "{\"error\":\"invalid_timeout\",\"hint\":\"1,5,10,30,0(never)\"}");
+            return;
+        }
+    }
+
+    JsonDocument res;
+    res["status"] = "ok";
+    res["policy"] = (int)wifi_manager_get_policy();
+    res["policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+    res["timeout_min"] = wifi_manager_get_timeout_min();
+    res["reboot_required"] = policy_changed;
+    String out;
+    serializeJson(res, out);
+    s_server.send(200, "application/json", out);
+}
+
 static void handle_nvs_get() {
     String json = nvs_manager_dump_json();
     s_server.send(200, "application/json", json);
@@ -256,6 +323,101 @@ static void handle_wol_test() {
     }
 }
 
+static void handle_ota_status() {
+    const ota_status_t* st = ota_manager_get_status();
+    JsonDocument doc;
+    doc["supported"] = st->enabled;
+    doc["in_progress"] = st->in_progress;
+    doc["last_success"] = st->last_success;
+    doc["last_error"] = ota_manager_error_str();
+    doc["version"] = FIRMWARE_VERSION;
+    doc["running_label"] = st->running_label ? st->running_label : "";
+    doc["running_addr"] = st->running_addr;
+    doc["target_label"] = st->target_label ? st->target_label : "";
+    doc["target_addr"] = st->target_addr;
+    doc["target_capacity"] = st->target_capacity;
+    doc["received"] = st->received;
+    doc["total"] = st->total;
+    doc["rollback_armed"] = st->rollback_armed;
+    doc["boot_fail_count"] = st->boot_fail_count;
+    String out;
+    serializeJson(doc, out);
+    s_server.send(200, "application/json", out);
+}
+
+static void handle_ota_upload() {
+    HTTPUpload& upload = s_server.upload();
+    switch (upload.status) {
+        case UPLOAD_FILE_START:
+            app_log("OTA", "Upload start: %s (%u bytes)", upload.filename.c_str(), upload.totalSize);
+            if (!ota_manager_begin(upload.totalSize)) {
+                app_log("OTA", "Upload rejected: %s", ota_manager_error_str());
+            }
+            break;
+        case UPLOAD_FILE_WRITE:
+            if (ota_manager_write(upload.buf, upload.currentSize) != upload.currentSize) {
+                app_log("OTA", "Write error at +%u bytes: %s",
+                        (unsigned int)ota_manager_get_status()->received,
+                        ota_manager_error_str());
+            }
+            break;
+        case UPLOAD_FILE_END:
+            app_log("OTA", "Upload complete, verifying image...");
+            ota_manager_end();
+            break;
+        case UPLOAD_FILE_ABORTED:
+            app_log("OTA", "Upload aborted by client");
+            ota_manager_abort();
+            break;
+        default:
+            break;
+    }
+}
+
+static void handle_ota_done() {
+    const ota_status_t* st = ota_manager_get_status();
+    if (st->last_success) {
+        s_server.sendHeader("Connection", "close");
+        s_server.send(200, "application/json", "{\"success\":true,\"message\":\"固件升级成功，设备重启中，请稍候约 20~40 秒...\"}");
+        delay(300);
+        ESP.restart();
+    } else {
+        s_server.sendHeader("Connection", "close");
+        s_server.send(500, "application/json",
+                      String("{\"success\":false,\"message\":\"固件升级失败: ") + ota_manager_error_str() + "\"}");
+    }
+}
+
+static void handle_config_export() {
+    bool full = s_server.hasArg("mode") && s_server.arg("mode") == "full";
+    s_server.sendHeader("Content-Type", "application/json");
+    s_server.sendHeader("Content-Disposition",
+                        String("attachment; filename=RemoteMapper_Config_") +
+                        (full ? "full_" : "safe_") + FIRMWARE_VERSION + ".json");
+    s_server.send(200, "application/json", config_backup_export(full));
+}
+
+static void handle_config_import() {
+    String body = s_server.arg("plain");
+    if (body.length() == 0) {
+        if (s_server.hasArg("body")) body = s_server.arg("body");
+    }
+    if (body.length() == 0) {
+        s_server.send(400, "application/json",
+                      "{\"status\":\"error\",\"message\":\"缺少备份内容\"}");
+        return;
+    }
+    String err = config_backup_import(body);
+    if (err.length() == 0) {
+        s_server.send(200, "application/json",
+                      "{\"status\":\"ok\",\"message\":\"配置已恢复，正在重启设备...\",\"reboot_required\":true}");
+    } else {
+        s_server.send(400, "application/json",
+                      String("{\"status\":\"error\",\"message\":\"恢复失败: ") +
+                      err + "\"}");
+    }
+}
+
 static void handle_captive_portal() {
     String host = s_server.hostHeader();
     if (host != "192.168.4.1" && host != "remotemapper.local") {
@@ -288,7 +450,23 @@ void web_server_init(void) {
     s_server.on("/api/nvs", HTTP_GET, handle_nvs_get);
     s_server.on("/api/nvs/save", HTTP_POST, handle_nvs_save);
     s_server.on("/api/nvs/reset", HTTP_POST, handle_nvs_reset);
+    s_server.on("/api/power", HTTP_GET, handle_power_get);
+    s_server.on("/api/power", HTTP_POST, handle_power_set);
     s_server.on("/api/system/restart", HTTP_POST, handle_system_restart);
+    s_server.on("/api/config/export", HTTP_GET, handle_config_export);
+    s_server.on("/api/config/import", HTTP_POST, handle_config_import);
+
+#if REMOTEMAPPER_OTA
+    s_server.on("/api/ota/status", HTTP_GET, handle_ota_status);
+    s_server.on("/api/ota/upload", HTTP_POST, handle_ota_done, handle_ota_upload);
+#else
+    s_server.on("/api/ota/status", HTTP_GET, []() {
+        s_server.send(200, "application/json", "{\"supported\":false,\"message\":\"当前型号固件未启用在线升级\"}");
+    });
+    s_server.on("/api/ota/upload", HTTP_POST, []() {
+        s_server.send(501, "application/json", "{\"supported\":false,\"message\":\"当前型号固件未启用在线升级\"}");
+    });
+#endif
 
     // Captive Portal probe redirects
     s_server.on("/generate_204", HTTP_GET, handle_captive_portal);

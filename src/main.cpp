@@ -11,6 +11,8 @@
 #include "ble/ble_remote_client.h"
 #include "cli/cli_manager.h"
 #include "led_indicator.h"
+#include "config/config_manager.h"
+#include "ota/ota_manager.h"
 
 #include <nvs_flash.h>
 #include <nvs.h>
@@ -66,6 +68,12 @@ void setup() {
     // 5. Initialize Serial / CDC CLI Manager
     cli_manager_init();
 
+    // 5.5. Config schema versioning & migration (must run before Wi-Fi reads policy)
+    config_manager_init();
+
+    // 5.6. OTA manager (partition info & online firmware update support)
+    ota_manager_init();
+
     // 6. Initialize Wi-Fi AP + STA & Captive Portal
     wifi_manager_init();
 
@@ -112,6 +120,9 @@ void loop() {
 
     // 4. Service Serial / WebSerial CLI commands
     cli_manager_task();
+
+    // 5. Confirm safe-boot watchdog once the new firmware has run stably
+    ota_manager_watchdog_confirm();
 
     // No delay here — USB audio task handles its own timing via vTaskDelayUntil
     vTaskDelay(1); // yield to let higher-priority tasks run (USB, BLE)

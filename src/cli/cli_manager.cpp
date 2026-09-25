@@ -7,6 +7,7 @@
 #include "keymap/key_state_machine.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <ctype.h>
 #include <USBCDC.h>
 
 #if !ARDUINO_USB_CDC_ON_BOOT
@@ -43,6 +44,86 @@ static void cli_feed_char(char c) {
 }
 
 static void handle_wifi_command(const String& arg) {
+    String a = arg;
+    a.trim();
+    String low = a;
+    low.toLowerCase();
+
+    if (low.startsWith("policy")) {
+        String p = a.substring(6);
+        p.trim();
+        if (p.length() == 0) {
+            JsonDocument doc;
+            doc["policy"] = (int)wifi_manager_get_policy();
+            doc["policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+            doc["timeout_min"] = wifi_manager_get_timeout_min();
+            doc["radio_state"] = (int)wifi_manager_get_radio_state();
+            doc["radio_state_str"] = wifi_manager_state_str(wifi_manager_get_radio_state());
+            String out;
+            serializeJson(doc, out);
+            cli_write_line(out);
+            return;
+        }
+        wifi_policy_t pol;
+        if (p.equalsIgnoreCase("always_on"))      pol = WIFI_POLICY_ALWAYS_ON;
+        else if (p.equalsIgnoreCase("on_demand")) pol = WIFI_POLICY_ON_DEMAND;
+        else if (p.equalsIgnoreCase("disabled"))  pol = WIFI_POLICY_DISABLED;
+        else {
+            cli_write_line("{\"error\":\"invalid_policy\",\"hint\":\"always_on|on_demand|disabled\"}");
+            return;
+        }
+
+        bool changed = (wifi_manager_get_policy() != pol);
+        wifi_manager_set_policy(pol);
+        JsonDocument doc;
+        doc["status"] = "ok";
+        doc["policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+        doc["rebooting"] = true;
+        String out;
+        serializeJson(doc, out);
+        cli_write_line(out);
+        if (changed) {
+            cli_write_line(pol == WIFI_POLICY_DISABLED
+                ? "Wi-Fi 将在重启后彻底关闭（USB CDC/UART 可用 'wifi on' 或 'wifi policy on_demand' 恢复）"
+                : "Wi-Fi 策略将在重启后生效...");
+        }
+        return;
+    }
+
+    if (low.startsWith("timeout")) {
+        String t = a.substring(7);
+        t.trim();
+        if (t.length() == 0) {
+            uint32_t tm = wifi_manager_get_timeout_min();
+            cli_write_line(tm == 0
+                ? "{\"timeout_min\":0,\"never\":true}"
+                : "{\"timeout_min\":" + String(tm) + ",\"never\":false}");
+            return;
+        }
+        uint32_t minutes = 0;
+        bool digits_only = true;
+        for (size_t i = 0; i < t.length(); i++) {
+            if (!isdigit((unsigned char)t[i])) { digits_only = false; break; }
+        }
+        if (t.equalsIgnoreCase("never")) {
+            minutes = 0;
+        } else if (digits_only) {
+            minutes = t.toInt();
+        } else {
+            cli_write_line("{\"error\":\"invalid_timeout\",\"hint\":\"1|5|10|30|never\"}");
+            return;
+        }
+        if (wifi_manager_set_timeout_min(minutes)) {
+            cli_write_line("{\"status\":\"ok\",\"timeout_min\":" + String(wifi_manager_get_timeout_min()) + "}");
+            cli_write_line(minutes == 0
+                ? "Wi-Fi 空闲自动关闭超时已设为 永不过期"
+                : "Wi-Fi 空闲自动关闭超时已设为 " + String(minutes) + " 分钟");
+        } else {
+            cli_write_line("{\"error\":\"invalid_timeout\",\"hint\":\"1|5|10|30|never\"}");
+        }
+        return;
+    }
+
     bool want_on = arg.equalsIgnoreCase("on");
     bool want_off = arg.equalsIgnoreCase("off");
     if (want_on || want_off) {
@@ -64,6 +145,10 @@ static void handle_wifi_command(const String& arg) {
     } else {
         JsonDocument doc;
         doc["wifi_enabled"] = wifi_manager_get_enabled();
+        doc["wifi_policy"] = (int)wifi_manager_get_policy();
+        doc["wifi_policy_str"] = wifi_manager_policy_str(wifi_manager_get_policy());
+        doc["wifi_timeout_min"] = wifi_manager_get_timeout_min();
+        doc["wifi_radio_state"] = (int)wifi_manager_get_radio_state();
         doc["ap_running"] = wifi_manager_is_ap_running();
         doc["ap_ip"] = wifi_manager_get_ap_ip();
         doc["sta_connected"] = wifi_manager_is_sta_connected();
@@ -143,7 +228,9 @@ static void handle_command(const String& line) {
         cli_write_line("  status        - Display system info & runtime statistics (JSON)");
         cli_write_line("  reconnect     - Trigger BLE remote re-scan");
         cli_write_line("  reset_keys    - Reset key bindings to factory defaults");
-        cli_write_line("  wifi on|off   - Enable/disable the whole Wi-Fi radio (persisted)");
+        cli_write_line("  wifi on|off   - Enable/disable the whole Wi-Fi radio (persisted, reboots)");
+        cli_write_line("  wifi policy [always_on|on_demand|disabled] - Get/set Wi-Fi power policy");
+        cli_write_line("  wifi timeout [1|5|10|30|never] - Get/set ON_DEMAND idle timeout (min)");
         cli_write_line("  wifi status   - Show Wi-Fi radio & connection status (JSON)");
         cli_write_line("  log on|off    - Mirror full logs to USB CDC (default: off)");
         cli_write_line("  log status    - Show CDC log mirror state (JSON)");

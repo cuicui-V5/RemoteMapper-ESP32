@@ -1,10 +1,14 @@
 #include "wifi_manager.h"
+#include "app_config.h"
 #include "log/app_log.h"
 #include <WiFi.h>
 #include <DNSServer.h>
 #include <ESPmDNS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
+
+static_assert((int)WIFI_POLICY_ON_DEMAND == WIFI_DEFAULT_POLICY,
+              "WIFI_DEFAULT_POLICY must match WIFI_POLICY_ON_DEMAND");
 
 #define DNS_PORT        53
 #define MDNS_HOSTNAME   "remotemapper"
@@ -19,6 +23,17 @@ static uint32_t         s_last_sta_check = 0;
 static bool             s_wifi_enabled = true;
 static bool             s_ap_running = false;
 static bool             s_mdns_started = false;
+
+// Wi-Fi Power Management state
+static wifi_policy_t      s_policy           = (wifi_policy_t)WIFI_DEFAULT_POLICY;
+static uint32_t           s_timeout_min      = WIFI_DEFAULT_TIMEOUT_MIN;
+static wifi_radio_state_t s_radio_state      = WIFI_STATE_OFF;
+static uint32_t           s_last_activity_ms = 0;
+
+static bool wifi_is_valid_timeout(uint32_t minutes) {
+    return minutes == WIFI_TIMEOUT_NEVER || minutes == 1 || minutes == 5 ||
+           minutes == 10 || minutes == 30;
+}
 
 static void wifi_start_ap(const String& ap_pass) {
     if (s_ap_running) {
@@ -68,22 +83,44 @@ static void wifi_apply_config(void) {
 
 void wifi_manager_init(void) {
     s_prefs.begin("wifi_conf", false);
-    s_wifi_enabled = s_prefs.getBool("wifi_enabled", true);
+
+    // Policy and timeout are normally seeded by config_manager_init() migration.
+    // Defensive defaults keep the manager robust if that ever did not run.
+    uint32_t stored_policy = s_prefs.getUInt("policy", WIFI_DEFAULT_POLICY);
+    if (stored_policy > WIFI_POLICY_DISABLED) {
+        stored_policy = WIFI_DEFAULT_POLICY;
+    }
+    s_policy = (wifi_policy_t)stored_policy;
+
+    uint32_t stored_timeout = s_prefs.getUInt("timeout_min", WIFI_DEFAULT_TIMEOUT_MIN);
+    if (!wifi_is_valid_timeout(stored_timeout)) {
+        stored_timeout = WIFI_DEFAULT_TIMEOUT_MIN;
+    }
+    s_timeout_min = stored_timeout;
+
+    s_wifi_enabled = (s_policy != WIFI_POLICY_DISABLED);
 
     if (!s_wifi_enabled) {
-        // Never touch the WiFi stack when disabled: de-initializing WiFi before BLE
+        // Never touch the WiFi stack when DISABLED: de-initializing WiFi before BLE
         // starts (or tearing it down at runtime) breaks 2.4GHz coexistence and can
         // stop the BLE link from coming up. The radio simply stays uninitialized.
-        app_log("WIFI", "Wi-Fi disabled by config; radio left uninitialized (USB CDC/UART: 'wifi on')");
+        s_radio_state = WIFI_STATE_OFF;
+        app_log("WIFI", "Wi-Fi policy DISABLED; radio left uninitialized (USB CDC/UART: 'wifi on')");
         return;
     }
 
-    // 1. Start AP + STA + mDNS
+    // Phase 2: ON_DEMAND still boots the radio on (same behavior as before).
+    // The idle-timeout power-down of ON_DEMAND lands in a later phase.
     wifi_apply_config();
+    s_radio_state = WIFI_STATE_ON;
+    s_last_activity_ms = millis();
+    app_log("WIFI", "Wi-Fi policy %s (timeout %u min, state %s)",
+            wifi_manager_policy_str(s_policy), (unsigned int)s_timeout_min,
+            wifi_manager_state_str(s_radio_state));
 }
 
 bool wifi_manager_get_enabled(void) {
-    return s_wifi_enabled;
+    return s_policy != WIFI_POLICY_DISABLED;
 }
 
 bool wifi_manager_is_ap_running(void) {
@@ -91,17 +128,89 @@ bool wifi_manager_is_ap_running(void) {
 }
 
 bool wifi_manager_set_enabled(bool enabled) {
-    if (s_wifi_enabled == enabled) {
+    // Legacy whole-radio switch; "enabled" now maps onto the Wi-Fi policy.
+    // DISABLED keeps the radio off, any other policy keeps it available.
+    return wifi_manager_set_policy(enabled ? WIFI_POLICY_ON_DEMAND : WIFI_POLICY_DISABLED);
+}
+
+wifi_policy_t wifi_manager_get_policy(void) {
+    return s_policy;
+}
+
+bool wifi_manager_set_policy(wifi_policy_t policy) {
+    if ((uint32_t)policy > WIFI_POLICY_DISABLED) {
+        return false;
+    }
+    if (s_policy == policy) {
         return true;
     }
-
-    s_prefs.putBool("wifi_enabled", enabled);
-    s_wifi_enabled = enabled;
-
+    s_prefs.putUInt("policy", (uint32_t)policy);
+    s_policy = policy;
+    s_wifi_enabled = (policy != WIFI_POLICY_DISABLED);
     // Applying the change requires a reboot: the caller (CLI/web) must restart.
     // Switching the WiFi stack on/off at runtime is unsafe while BLE is running.
-    app_log("WIFI", "Wi-Fi %s saved; reboot required to apply", enabled ? "enable" : "disable");
+    app_log("WIFI", "Wi-Fi policy set to %s; reboot required to apply",
+            wifi_manager_policy_str(policy));
     return true;
+}
+
+uint32_t wifi_manager_get_timeout_min(void) {
+    return s_timeout_min;
+}
+
+bool wifi_manager_set_timeout_min(uint32_t minutes) {
+    if (!wifi_is_valid_timeout(minutes)) {
+        return false;
+    }
+    if (s_timeout_min == minutes) {
+        return true;
+    }
+    s_prefs.putUInt("timeout_min", minutes);
+    s_timeout_min = minutes;
+    app_log("WIFI", "Wi-Fi idle timeout set to %u minute(s)", (unsigned int)minutes);
+    return true;
+}
+
+wifi_radio_state_t wifi_manager_get_radio_state(void) {
+    return s_radio_state;
+}
+
+void wifi_manager_mark_activity(void) {
+    s_last_activity_ms = millis();
+}
+
+uint32_t wifi_manager_get_last_activity_ms(void) {
+    return s_last_activity_ms;
+}
+
+bool wifi_manager_request_wifi(wifi_wake_reason_t reason) {
+    if (s_policy == WIFI_POLICY_DISABLED) {
+        app_log("WIFI", "Wi-Fi request ignored: policy DISABLED (reason=%d)", (int)reason);
+        return false;
+    }
+    // Phase 2: radio stays on whenever not DISABLED. Idle shutdown & transient
+    // ENABLING/SHUTTING_DOWN handling is implemented in a later phase.
+    wifi_manager_mark_activity();
+    return s_radio_state != WIFI_STATE_OFF;
+}
+
+const char* wifi_manager_policy_str(wifi_policy_t policy) {
+    switch (policy) {
+        case WIFI_POLICY_ALWAYS_ON: return "always_on";
+        case WIFI_POLICY_ON_DEMAND: return "on_demand";
+        case WIFI_POLICY_DISABLED:  return "disabled";
+        default:                    return "unknown";
+    }
+}
+
+const char* wifi_manager_state_str(wifi_radio_state_t state) {
+    switch (state) {
+        case WIFI_STATE_OFF:           return "off";
+        case WIFI_STATE_ENABLING:      return "enabling";
+        case WIFI_STATE_ON:            return "on";
+        case WIFI_STATE_SHUTTING_DOWN: return "shutting_down";
+        default:                       return "unknown";
+    }
 }
 
 void wifi_manager_task(void) {
@@ -189,6 +298,43 @@ bool wifi_manager_save_sta_config(const String& ssid, const String& password) {
 
 String wifi_manager_get_ap_pass(void) {
     return s_prefs.getString("ap_pass", "");
+}
+
+String wifi_manager_get_sta_ssid(void) {
+    return s_prefs.getString("ssid", "");
+}
+
+String wifi_manager_get_sta_pass(void) {
+    return s_prefs.getString("pass", "");
+}
+
+bool wifi_manager_restore_backup(const String& ssid, const String& sta_pass,
+                                 const String& ap_pass, wifi_policy_t policy,
+                                 uint32_t timeout_min) {
+    if ((uint32_t)policy > WIFI_POLICY_DISABLED) {
+        return false;
+    }
+    if (!wifi_is_valid_timeout(timeout_min)) {
+        return false;
+    }
+    String ap = ap_pass;
+    ap.trim();
+    if (ap.length() > 0 && ap.length() < 8) {
+        return false;
+    }
+    s_prefs.putString("ssid", ssid);
+    s_prefs.putString("pass", sta_pass);
+    s_prefs.putString("ap_pass", ap);
+    s_prefs.putUInt("policy", (uint32_t)policy);
+    s_prefs.putUInt("timeout_min", timeout_min);
+    s_policy = policy;
+    s_timeout_min = timeout_min;
+    s_wifi_enabled = (policy != WIFI_POLICY_DISABLED);
+    s_sta_configured = (ssid.length() > 0);
+    app_log("WIFI", "Wi-Fi config restored from backup (policy=%s, timeout=%u min, ssid=%s)",
+            wifi_manager_policy_str(policy), (unsigned int)timeout_min,
+            ssid.length() > 0 ? ssid.c_str() : "(none)");
+    return true;
 }
 
 bool wifi_manager_save_ap_config(const String& ap_password) {
