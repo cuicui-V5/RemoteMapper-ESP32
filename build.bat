@@ -14,6 +14,9 @@ if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
 set "PYTHONUTF8=1"
 set "PYTHONIOENCODING=utf-8"
 
+:: PlatformIO executable (prefer venv/system python -m platformio)
+set "PIO=%PY% -m platformio"
+
 :: Determine esptool executable
 set "ESPTOOL=%~dp0RemoteMapper-Flasher\tools\esptool.exe"
 if not exist "%ESPTOOL%" (
@@ -40,6 +43,8 @@ if "%TARGET%"=="" set "TARGET=all"
 
 if /i "%TARGET%"=="n16r8" goto :BUILD_N16R8
 if /i "%TARGET%"=="esp32s3_n16r8" goto :BUILD_N16R8
+if /i "%TARGET%"=="n8r8" goto :BUILD_N8R8
+if /i "%TARGET%"=="esp32s3_n8r8" goto :BUILD_N8R8
 if /i "%TARGET%"=="n8r2" goto :BUILD_N8R2
 if /i "%TARGET%"=="esp32s3_n8r2" goto :BUILD_N8R2
 if /i "%TARGET%"=="n4r2" goto :BUILD_N4R2
@@ -47,13 +52,13 @@ if /i "%TARGET%"=="esp32s3_n4r2" goto :BUILD_N4R2
 if /i "%TARGET%"=="all" goto :BUILD_ALL
 
 echo [ERROR] Unknown target: %TARGET%
-echo Usage: build.bat [all | n16r8 | n8r2 | n4r2]
+echo Usage: build.bat [all | n16r8 | n8r8 | n8r2 | n4r2]
 exit /b 1
 
 :BUILD_ALL
-echo [BUILD] Compiling all 3 firmware targets (N16R8, N8R2, N4R2)...
+echo [BUILD] Compiling all 4 firmware targets (N16R8, N8R8, N8R2, N4R2)...
 echo ----------------------------------------------------------------------
-%PY% -m platformio run -e esp32s3_n16r8 -e esp32s3_n8r2 -e esp32s3_n4r2
+%PIO% run -e esp32s3_n16r8 -e esp32s3_n8r8 -e esp32s3_n8r2 -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 (
     echo [ERROR] Build failed!
     exit /b %ERRORLEVEL%
@@ -66,6 +71,9 @@ echo ----------------------------------------------------------------------
 call :MERGE_ONE esp32s3_n16r8 N16R8
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
+call :MERGE_ONE esp32s3_n8r8 N8R8
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+
 call :MERGE_ONE esp32s3_n8r2 N8R2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 
@@ -76,21 +84,28 @@ goto :BUILD_SUMMARY
 
 :BUILD_N16R8
 echo [BUILD] Compiling esp32s3_n16r8...
-%PY% -m platformio run -e esp32s3_n16r8
+%PIO% run -e esp32s3_n16r8
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n16r8 N16R8
 goto :BUILD_SUMMARY
 
+:BUILD_N8R8
+echo [BUILD] Compiling esp32s3_n8r8...
+%PIO% run -e esp32s3_n8r8
+if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+call :MERGE_ONE esp32s3_n8r8 N8R8
+goto :BUILD_SUMMARY
+
 :BUILD_N8R2
 echo [BUILD] Compiling esp32s3_n8r2...
-%PY% -m platformio run -e esp32s3_n8r2
+%PIO% run -e esp32s3_n8r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n8r2 N8R2
 goto :BUILD_SUMMARY
 
 :BUILD_N4R2
 echo [BUILD] Compiling esp32s3_n4r2...
-%PY% -m platformio run -e esp32s3_n4r2
+%PIO% run -e esp32s3_n4r2
 if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
 call :MERGE_ONE esp32s3_n4r2 N4R2
 goto :BUILD_SUMMARY

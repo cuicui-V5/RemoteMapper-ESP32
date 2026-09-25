@@ -4,7 +4,7 @@
 
 将遥控器信号直接转换为标准免驱的 USB 输入设备（UAC 1.0 麦克风 + HID 键盘 + 媒体控制），解决 Windows 系统下特定按键被丢弃和音频输入依赖虚拟声卡的问题。
 
-注：当前固件仅支持**小米蓝牙遥控器 2 Pro（型号：RC003）**，暂不支持其他型号。支持 ESP32-S3 N16R8、N8R2、N4R2 等主流硬件版本。
+注：当前固件仅支持**小米蓝牙遥控器 2 Pro（型号：RC003）**，暂不支持其他型号。支持 ESP32-S3 N16R8、N8R8、N8R2、N4R2 等主流硬件版本。
 
 ---
 
@@ -114,7 +114,8 @@
 
 1. **开发板要求**：
    任意 ESP32-S3 开发板，推荐配置：
-   * **N16R8**（16MB Flash, 8MB PSRAM）：默认构建目标。
+   * **N16R8**（16MB Flash, 8MB PSRAM）：推荐高配规格。
+   * **N8R8**（8MB Flash, 8MB PSRAM）：大内存高性价比规格。
    * **N8R2**（8MB Flash, 2MB PSRAM）：主流常见规格。
    * **N4R2**（4MB Flash, 2MB PSRAM）：极简规格，编译产物约 1.2MB。
 2. **遥控器**：
@@ -138,7 +139,7 @@
 3. **进入刷机模式**：
    按住开发板上的 **`BOOT`** 键不放，点按一下 **`RST`** 重启键，然后松开 **`BOOT`** 键。
 4. **一键写入**：
-   进入解压后的 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
+   进入解压后的 `RemoteMapper-Flasher` 目录，双击运行 **`一键烧录.bat`**（或 `flash.bat`），跟随全中文向导提示选择开发板型号（N16R8 / N8R8 / N8R2 / N4R2）与串口号，即可全自动完成烧录。
 
 ---
 
@@ -150,8 +151,9 @@
 
 运行根目录下的 `build.bat` 脚本：
 ```cmd
-build.bat          :: 一键编译全部 3 个版本（N16R8 / N8R2 / N4R2），并自动将生成镜像打包复制到 RemoteMapper-Flasher\bin 目录
+build.bat          :: 一键编译全部 4 个版本（N16R8 / N8R8 / N8R2 / N4R2），并自动将生成镜像打包复制到 RemoteMapper-Flasher\bin 目录
 build.bat n16r8    :: 仅编译 N16R8 版本
+build.bat n8r8     :: 仅编译 N8R8 版本
 build.bat n8r2     :: 仅编译 N8R2 版本
 build.bat n4r2     :: 仅编译 N4R2 版本
 ```
@@ -166,6 +168,7 @@ publish_release.bat  :: 本地全自动压缩为 .7z/.zip 并直接更新发布�
 编译完成后，通过根目录下的 `flash.bat` 脚本直接烧录至开发板：
 ```cmd
 flash.bat n16r8    :: 烧录至 N16R8 开发板（默认）
+flash.bat n8r8     :: 烧录至 N8R8 开发板
 flash.bat n8r2     :: 烧录至 N8R2 开发板
 flash.bat n4r2     :: 烧录至 N4R2 开发板
 ```
@@ -174,6 +177,7 @@ flash.bat n4r2     :: 烧录至 N4R2 开发板
 也可以直接使用 PlatformIO 原生命令：
 ```bash
 pio run -e esp32s3_n16r8 -t upload
+pio run -e esp32s3_n8r8 -t upload
 pio run -e esp32s3_n8r2 -t upload
 pio run -e esp32s3_n4r2 -t upload
 ```
@@ -182,11 +186,19 @@ pio run -e esp32s3_n4r2 -t upload
 
 ## 使用指南
 
-### 1. 配网
-固件首次启动后会开启配置热点：
-* 热点名称：`RemoteMapper-AP`（无密码）
-* 浏览器访问：`http://192.168.4.1/`
-* 进入「Wi-Fi 与系统配置」页面，扫描并连接局域网 Wi-Fi。连接成功后，可在局域网内直接通过分配的 IP 地址访问后台。
+### 1. 配网与控制台访问
+
+固件首次启动或未配置 Wi-Fi 时，会自动开启配置热点：
+* **热点名称**：`RemoteMapper-AP`（初始无密码）
+* **初始配网访问**：手机或电脑连接热点后，浏览器访问 **`http://192.168.4.1/`** 或 **`http://remotemapper.local/`**。
+* **配网与功耗优化机制**：
+  进入「Wi-Fi 与系统配置」页面，扫描并连接您的局域网 Wi-Fi。
+  > 🍃 **功耗优化**：一旦 ESP32 成功连上路由器并获取到 IP，固件将**立刻自动关闭 RemoteMapper-AP 热点**，彻底消除双频射频发射功耗与发热！
+* **日常管理后台访问**：
+  配网成功后，请将手机/电脑连接同一家庭 Wi-Fi，通过以下任一方式进入管理控制台：
+  * **统一域名访问（推荐）**：**`http://remotemapper.local/`**（原生支持 Windows 10/11、macOS、iOS 等）
+  * **局域网 IP 访问**：在路由器后台或管理面板顶部查看分配的 IP 地址（例如 `http://192.168.1.100/`）
+  *(注：若路由器断电或密码失效导致网络断开超过 15 秒，固件将自动重新拉起 RemoteMapper-AP 热点，防失联且便于重新配置)*
 
 ### 2. 配对遥控器
 1. 打开 Web 后台的「蓝牙配对管理」标签页。

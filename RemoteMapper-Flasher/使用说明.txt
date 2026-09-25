@@ -8,6 +8,7 @@
 
 二、支持硬件
 - ESP32-S3-WROOM-1 N16R8（16MB Flash / 8MB Octal PSRAM，推荐）
+- ESP32-S3-WROOM-1 N8R8（8MB Flash / 8MB Octal PSRAM）
 - ESP32-S3-WROOM-1 N8R2（8MB Flash / 2MB Quad PSRAM）
 - ESP32-S3-WROOM-1 N4R2（4MB Flash / 2MB Quad PSRAM）
 
@@ -25,7 +26,8 @@
 4. 刷机完成后配置：
    - 按一下开发板上的【RST】按键重启设备；
    - 手机或电脑搜索 WiFi 热点：RemoteMapper-AP（初始无密码）；
-   - 浏览器打开后台：http://192.168.4.1 进行按键映射与蓝牙遥控器配对。
+   - 浏览器打开后台：http://192.168.4.1 或 http://remotemapper.local 进行按键映射与蓝牙遥控器配对；
+   - 连接家庭 Wi-Fi 后热点会自动关闭以降低功耗，后续请使用分配的局域网 IP 或 http://remotemapper.local 访问。
 
 四、目录结构说明
 RemoteMapper-Flasher/
@@ -34,6 +36,7 @@ RemoteMapper-Flasher/
 ├── 使用说明.txt         # 本使用指南文档
 ├── bin/                 # 预编译各型号完整固件镜像
 │   ├── RemoteMapper_ESP32S3_N16R8_full.bin
+│   ├── RemoteMapper_ESP32S3_N8R8_full.bin
 │   ├── RemoteMapper_ESP32S3_N8R2_full.bin
 │   └── RemoteMapper_ESP32S3_N4R2_full.bin
 └── tools/               # 烧录工具

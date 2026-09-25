@@ -1,4 +1,4 @@
-﻿# UTF-8 with BOM
+# UTF-8 with BOM
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $host.UI.RawUI.WindowTitle = "RemoteMapper-ESP32 一键免环境刷机工具"
@@ -19,7 +19,7 @@ function Show-Header {
     Write-Host "================================================================================" -ForegroundColor Cyan
     Write-Host "说明："
     Write-Host "  本工具已内置完整烧录环境与全型号预编译固件，电脑无需安装任何开发环境。"
-    Write-Host "  支持 ESP32-S3 全系列硬件开发板（N16R8 / N8R2 / N4R2）。"
+Write-Host "  支持 ESP32-S3 全系列硬件开发板（N16R8 / N8R8 / N8R2 / N4R2）。"
     Write-Host ""
     Write-Host "  默认使用【升级模式】：只写 bootloader / 分区表 / App 区域，"
     Write-Host "  不影响 NVS 存储区，Wi-Fi、AP、蓝牙配对、按键映射全部保留！" -ForegroundColor Green
@@ -71,12 +71,13 @@ function Select-Model {
         Write-Host "请根据您购买的开发板型号选择对应固件（如果不清楚，普通开发板默认选 1）："
         Write-Host ""
         Write-Host "  [1] ESP32-S3-WROOM-1 N16R8 (16MB Flash, 8MB Octal PSRAM)  【官方推荐 / 最常用】" -ForegroundColor White
-        Write-Host "  [2] ESP32-S3-WROOM-1 N8R2  (8MB Flash, 2MB Quad PSRAM)" -ForegroundColor White
-        Write-Host "  [3] ESP32-S3-WROOM-1 N4R2  (4MB Flash, 2MB Quad PSRAM)" -ForegroundColor White
+        Write-Host "  [2] ESP32-S3-WROOM-1 N8R8  (8MB Flash, 8MB Octal PSRAM)" -ForegroundColor White
+        Write-Host "  [3] ESP32-S3-WROOM-1 N8R2  (8MB Flash, 2MB Quad PSRAM)" -ForegroundColor White
+        Write-Host "  [4] ESP32-S3-WROOM-1 N4R2  (4MB Flash, 2MB Quad PSRAM)" -ForegroundColor White
         Write-Host "  [Q] 退出程序" -ForegroundColor DarkGray
         Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
         Write-Host ""
-        $choice = Read-Host "请输入编号 [1-3] (直接按回车默认为 1)"
+        $choice = Read-Host "请输入编号 [1-4] (直接按回车默认为 1)"
         if ($null -eq $choice -or $choice.Trim() -eq "") {
             $choice = "1"
         } else {
@@ -97,13 +98,19 @@ function Select-Model {
         }
         if ($choice -eq "2") {
             return @{
+                Name = "ESP32-S3 N8R8 (8MB Flash, 8MB PSRAM)"
+                Bin = "RemoteMapper_ESP32S3_N8R8_full.bin"
+            }
+        }
+        if ($choice -eq "3") {
+            return @{
                 Name = "ESP32-S3 N8R2 (8MB Flash, 2MB PSRAM)"
                 Bootloader = "RemoteMapper_ESP32S3_N8R2_bootloader.bin"
                 Partitions = "RemoteMapper_ESP32S3_N8R2_partitions.bin"
                 App = "RemoteMapper_ESP32S3_N8R2_app.bin"
             }
         }
-        if ($choice -eq "3") {
+        if ($choice -eq "4") {
             return @{
                 Name = "ESP32-S3 N4R2 (4MB Flash, 2MB PSRAM)"
                 Bootloader = "RemoteMapper_ESP32S3_N4R2_bootloader.bin"
