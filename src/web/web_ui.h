@@ -997,50 +997,117 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
                 <!-- Quick Key Dropdown -->
                 <div style="margin-bottom: 12px;">
-                    <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">快速选择按键 / 多媒体功能</label>
+                    <label style="display:block; font-size:12px; color:var(--accent-cyan); font-weight:600; margin-bottom:4px;">快速预设按键 / 组合键 / 多媒体（网页难捕获组合首选）</label>
                     <select id="quick-key-select" onchange="onQuickKeySelect(this.value)" style="width:100%; padding:8px 10px; background:#151d2a; border:1px solid #243247; color:#fff; border-radius:8px; font-size:13px; outline:none;">
                         <option value="">-- 选择常用按键 / 组合键 / 多媒体 --</option>
-                        <optgroup label="常用控制键">
-                            <option value="k:0x00:0x28">回车</option>
-                            <option value="k:0x00:0x29">Esc</option>
-                            <option value="k:0x00:0x2C">空格</option>
-                            <option value="k:0x00:0x2B">Tab</option>
-                            <option value="k:0x00:0x2A">退格</option>
-                            <option value="k:0x00:0x4C">删除</option>
-                            <option value="k:0x00:0x39">大写锁定</option>
-                            <option value="k:0x00:0x46">屏幕截图</option>
+                        <optgroup label="【纯修饰键组合】（输入法切换 / 全局宏热键前缀）">
+                            <option value="m:0x03:0x00">Ctrl + Shift（Windows 输入法 / 语言快速切换）</option>
+                            <option value="m:0x09:0x00">Ctrl + Win（系统级辅助快捷键前缀）</option>
+                            <option value="m:0x05:0x00">Ctrl + Alt（常用全局功能热键前缀）</option>
+                            <option value="m:0x06:0x00">Alt + Shift（Windows 键盘语言布局切换）</option>
+                            <option value="m:0x0A:0x00">Win + Shift（系统快捷扩展前缀）</option>
+                            <option value="m:0x0C:0x00">Win + Alt（游戏 / 录屏功能前缀）</option>
+                            <option value="m:0x07:0x00">Ctrl + Alt + Shift（三修饰键宏热键）</option>
+                            <option value="m:0x0D:0x00">Ctrl + Alt + Win（三修饰键宏热键）</option>
+                            <option value="m:0x0B:0x00">Ctrl + Shift + Win（三修饰键宏热键）</option>
+                            <option value="m:0x0F:0x00">Ctrl + Alt + Shift + Win（Hyper Key 全修饰键）</option>
                         </optgroup>
-                        <optgroup label="单修饰键">
-                            <option value="m:0x08:0x00">Win 键</option>
+                        <optgroup label="【单修饰键】（独立按键）">
+                            <option value="m:0x08:0x00">Win 键（开始菜单）</option>
                             <option value="m:0x01:0x00">Ctrl 键</option>
                             <option value="m:0x04:0x00">Alt 键</option>
                             <option value="m:0x02:0x00">Shift 键</option>
                         </optgroup>
+                        <optgroup label="【Win 常用系统组合键】（网页无法直接录制）">
+                            <option value="k:0x08:0x07">Win + D（显示 / 最小化桌面）</option>
+                            <option value="k:0x08:0x08">Win + E（打开此电脑 / 文件资源管理器）</option>
+                            <option value="k:0x08:0x0F">Win + L（立即锁屏）</option>
+                            <option value="k:0x08:0x15">Win + R（打开“运行”窗口）</option>
+                            <option value="k:0x08:0x2B">Win + Tab（任务视图 / 多桌面切换）</option>
+                            <option value="k:0x08:0x0B">Win + H（微软语音听写输入法）</option>
+                            <option value="k:0x08:0x19">Win + V（剪贴板历史记录面板）</option>
+                            <option value="k:0x08:0x1B">Win + X（系统高级快捷菜单 / 终端）</option>
+                            <option value="k:0x08:0x0C">Win + I（打开 Windows 设置）</option>
+                            <option value="k:0x08:0x04">Win + A（操作中心 / 快速控制面板）</option>
+                            <option value="k:0x08:0x13">Win + P（投影与多显示器输出设置）</option>
+                            <option value="k:0x08:0x0A">Win + G（Xbox 游戏工具栏与屏幕录制）</option>
+                            <option value="k:0x08:0x10">Win + M（最小化全部窗口）</option>
+                            <option value="k:0x08:0x37">Win + . (句号)（表情符号与特殊符号面板）</option>
+                            <option value="k:0x0A:0x16">Win + Shift + S（区域屏幕截图）</option>
+                            <option value="k:0x0A:0x10">Win + Shift + M（还原最小化的全部窗口）</option>
+                        </optgroup>
+                        <optgroup label="【Win 窗口分屏与虚拟桌面】">
+                            <option value="k:0x08:0x52">Win + 方向上（当前窗口最大化）</option>
+                            <option value="k:0x08:0x51">Win + 方向下（当前窗口最小化 / 还原）</option>
+                            <option value="k:0x08:0x50">Win + 方向左（当前窗口靠左半屏贴靠）</option>
+                            <option value="k:0x08:0x4F">Win + 方向右（当前窗口靠右半屏贴靠）</option>
+                            <option value="k:0x09:0x07">Ctrl + Win + D（新建虚拟桌面）</option>
+                            <option value="k:0x09:0x3D">Ctrl + Win + F4（关闭当前虚拟桌面）</option>
+                            <option value="k:0x09:0x50">Ctrl + Win + 方向左（切换到左侧虚拟桌面）</option>
+                            <option value="k:0x09:0x4F">Ctrl + Win + 方向右（切换到右侧虚拟桌面）</option>
+                        </optgroup>
+                        <optgroup label="【经典快捷组合键】（Ctrl / Alt 组合）">
+                            <option value="k:0x03:0x29">Ctrl + Shift + Esc（直接打开任务管理器）</option>
+                            <option value="k:0x04:0x2B">Alt + Tab（快速切换活动窗口）</option>
+                            <option value="k:0x04:0x3D">Alt + F4（关闭当前程序窗口）</option>
+                            <option value="k:0x04:0x2C">Alt + Space（窗口控制菜单 / 搜索）</option>
+                            <option value="k:0x04:0x28">Alt + Enter（属性 / 播放器全屏）</option>
+                            <option value="k:0x04:0x36">Alt + ,（逗号，微信语音输入等热键）</option>
+                            <option value="k:0x01:0x06">Ctrl + C（复制）</option>
+                            <option value="k:0x01:0x19">Ctrl + V（粘贴）</option>
+                            <option value="k:0x01:0x1B">Ctrl + X（剪切）</option>
+                            <option value="k:0x01:0x1D">Ctrl + Z（撤销）</option>
+                            <option value="k:0x01:0x1C">Ctrl + Y（重做）</option>
+                            <option value="k:0x01:0x04">Ctrl + A（全选）</option>
+                            <option value="k:0x01:0x16">Ctrl + S（保存）</option>
+                            <option value="k:0x01:0x09">Ctrl + F（查找）</option>
+                            <option value="k:0x01:0x1A">Ctrl + W（关闭标签页 / 窗口）</option>
+                            <option value="k:0x01:0x17">Ctrl + T（新建标签页）</option>
+                            <option value="k:0x01:0x2B">Ctrl + Tab（切换到下一个标签页）</option>
+                            <option value="k:0x03:0x2B">Ctrl + Shift + Tab（切换到上一个标签页）</option>
+                            <option value="k:0x03:0x17">Ctrl + Shift + T（恢复已关闭的标签页）</option>
+                            <option value="k:0x03:0x11">Ctrl + Shift + N（新建文件夹 / 无痕窗口）</option>
+                            <option value="k:0x04:0x50">Alt + 方向左（浏览器后退 / 目录上一层）</option>
+                            <option value="k:0x04:0x4F">Alt + 方向右（浏览器前进）</option>
+                        </optgroup>
+                        <optgroup label="常用控制键">
+                            <option value="k:0x00:0x28">回车 (Enter)</option>
+                            <option value="k:0x00:0x29">Esc</option>
+                            <option value="k:0x00:0x2C">空格 (Space)</option>
+                            <option value="k:0x00:0x2B">Tab</option>
+                            <option value="k:0x00:0x2A">退格 (Backspace)</option>
+                            <option value="k:0x00:0x4C">删除 (Delete)</option>
+                            <option value="k:0x00:0x49">插入 (Insert)</option>
+                            <option value="k:0x00:0x39">大写锁定 (CapsLock)</option>
+                            <option value="k:0x00:0x46">屏幕截图 (PrtScn)</option>
+                            <option value="k:0x00:0x47">滚动锁定 (ScrollLock)</option>
+                            <option value="k:0x00:0x48">暂停 (Pause/Break)</option>
+                        </optgroup>
                         <optgroup label="方向与翻页导航">
-                            <option value="k:0x00:0x52">方向上</option>
-                            <option value="k:0x00:0x51">方向下</option>
-                            <option value="k:0x00:0x50">方向左</option>
-                            <option value="k:0x00:0x4F">方向右</option>
-                            <option value="k:0x00:0x4B">上一页</option>
-                            <option value="k:0x00:0x4E">下一页</option>
-                            <option value="k:0x00:0x4A">行首</option>
-                            <option value="k:0x00:0x4D">行尾</option>
+                            <option value="k:0x00:0x52">方向上 (Up)</option>
+                            <option value="k:0x00:0x51">方向下 (Down)</option>
+                            <option value="k:0x00:0x50">方向左 (Left)</option>
+                            <option value="k:0x00:0x4F">方向右 (Right)</option>
+                            <option value="k:0x00:0x4B">上一页 (PageUp)</option>
+                            <option value="k:0x00:0x4E">下一页 (PageDown)</option>
+                            <option value="k:0x00:0x4A">行首 (Home)</option>
+                            <option value="k:0x00:0x4D">行尾 (End)</option>
                         </optgroup>
                         <optgroup label="功能键 F1 ~ F12">
                             <option value="k:0x00:0x3A">F1</option>
                             <option value="k:0x00:0x3B">F2</option>
                             <option value="k:0x00:0x3C">F3</option>
                             <option value="k:0x00:0x3D">F4</option>
-                            <option value="k:0x00:0x3E">F5</option>
+                            <option value="k:0x00:0x3E">F5（刷新）</option>
                             <option value="k:0x00:0x3F">F6</option>
                             <option value="k:0x00:0x40">F7</option>
                             <option value="k:0x00:0x41">F8</option>
                             <option value="k:0x00:0x42">F9</option>
                             <option value="k:0x00:0x43">F10</option>
-                            <option value="k:0x00:0x44">F11</option>
-                            <option value="k:0x00:0x45">F12</option>
+                            <option value="k:0x00:0x44">F11（全屏）</option>
+                            <option value="k:0x00:0x45">F12（开发者工具）</option>
                         </optgroup>
-                        <optgroup label="自定义脚本专用键 F13 ~ F24">
+                        <optgroup label="自定义脚本专用键 F13 ~ F24（无物理冲突宏热键）">
                             <option value="k:0x00:0x68">F13</option>
                             <option value="k:0x00:0x69">F14</option>
                             <option value="k:0x00:0x6A">F15</option>
@@ -1054,29 +1121,20 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <option value="k:0x00:0x72">F23</option>
                             <option value="k:0x00:0x73">F24</option>
                         </optgroup>
-                        <optgroup label="常用快捷组合键">
-                            <option value="k:0x04:0x36">Alt + ,</option>
-                            <option value="k:0x08:0x0B">Win + H</option>
-                            <option value="k:0x08:0x07">Win + D</option>
-                            <option value="k:0x04:0x2B">Alt + Tab</option>
-                            <option value="k:0x04:0x3D">Alt + F4</option>
-                            <option value="k:0x01:0x06">Ctrl + C</option>
-                            <option value="k:0x01:0x19">Ctrl + V</option>
-                            <option value="k:0x01:0x1D">Ctrl + Z</option>
-                        </optgroup>
                         <optgroup label="多媒体与系统控制" id="quick-optgroup-media">
-                            <option value="c:0x00:0x00E9">音量增加</option>
-                            <option value="c:0x00:0x00EA">音量减少</option>
-                            <option value="c:0x00:0x00E2">静音</option>
-                            <option value="c:0x00:0x00CD">播放 / 暂停</option>
-                            <option value="c:0x00:0x00B5">下一曲</option>
-                            <option value="c:0x00:0x00B6">上一曲</option>
-                            <option value="c:0x00:0x00B7">停止播放</option>
-                            <option value="c:0x00:0x0032">系统休眠</option>
-                            <option value="c:0x00:0x0224">网页返回</option>
-                            <option value="c:0x00:0x0223">网页主页</option>
-                            <option value="c:0x00:0x0225">网页前进</option>
-                            <option value="c:0x00:0x0192">打开计算器</option>
+                            <option value="c:0x00:0x00E9">音量增加 (Volume Up)</option>
+                            <option value="c:0x00:0x00EA">音量减少 (Volume Down)</option>
+                            <option value="c:0x00:0x00E2">静音 (Mute)</option>
+                            <option value="c:0x00:0x00CD">播放 / 暂停 (Play/Pause)</option>
+                            <option value="c:0x00:0x00B5">下一曲 (Next Track)</option>
+                            <option value="c:0x00:0x00B6">上一曲 (Previous Track)</option>
+                            <option value="c:0x00:0x00B7">停止播放 (Stop)</option>
+                            <option value="c:0x00:0x0030">系统电源 (Power)</option>
+                            <option value="c:0x00:0x0032">系统休眠 (Sleep)</option>
+                            <option value="c:0x00:0x0224">网页后退 (Browser Back)</option>
+                            <option value="c:0x00:0x0225">网页前进 (Browser Forward)</option>
+                            <option value="c:0x00:0x0223">网页主页 (Browser Home)</option>
+                            <option value="c:0x00:0x0192">打开计算器 (Calculator)</option>
                         </optgroup>
                     </select>
                 </div>
@@ -1084,7 +1142,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <!-- Numerical Inputs -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div>
-                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">修饰键（0x01=Ctrl, 0x02=Shift, 0x04=Alt, 0x08=Win）</label>
+                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">修饰键（0x01=Ctrl, 0x02=Shift, 0x04=Alt, 0x08=Win，可累加如 0x03=Ctrl+Shift）</label>
                         <input type="text" id="adv-mod" value="0x00" oninput="onAdvInputChanged()" placeholder="0x00" style="width:100%; padding:8px 10px; background:#151d2a; border:1px solid #243247; color:#fff; border-radius:8px; font-size:13px; outline:none; font-family:monospace;">
                     </div>
                     <div>
@@ -1156,6 +1214,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             'PrintScreen': 0x46, 'ScrollLock': 0x47, 'Pause': 0x48, 'Insert': 0x49,
             'Home': 0x4A, 'PageUp': 0x4B, 'Delete': 0x4C, 'End': 0x4D, 'PageDown': 0x4E,
             'ArrowRight': 0x4F, 'ArrowLeft': 0x50, 'ArrowDown': 0x51, 'ArrowUp': 0x52
+        };
+
+        const FRIENDLY_KEY_NAMES = {
+            0x28: 'Enter', 0x29: 'Esc', 0x2A: 'Backspace', 0x2B: 'Tab', 0x2C: 'Space',
+            0x36: ',', 0x37: '.', 0x39: 'CapsLock',
+            0x46: 'PrtScn', 0x47: 'ScrollLock', 0x48: 'Pause', 0x49: 'Insert',
+            0x4A: 'Home', 0x4B: 'PageUp', 0x4C: 'Delete', 0x4D: 'End', 0x4E: 'PageDown',
+            0x4F: 'Right', 0x50: 'Left', 0x51: 'Down', 0x52: 'Up'
         };
 
         function hexToHtmlColor(hexStr) {
@@ -1361,9 +1427,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             let parts = [];
             if (mod & 0x01) parts.push('Ctrl');
+            if (mod & 0x08) parts.push('Win');
             if (mod & 0x04) parts.push('Alt');
             if (mod & 0x02) parts.push('Shift');
-            if (mod & 0x08) parts.push('Win');
 
             if (cons > 0) {
                 const consMap = {
@@ -1383,13 +1449,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 };
                 parts.push(consMap[cons] || `多媒体 0x${cons.toString(16).toUpperCase()}`);
             } else if (key > 0) {
-                let name = `Key(0x${key.toString(16).toUpperCase()})`;
-                for (let k in DOM_TO_HID) {
-                    if (DOM_TO_HID[k] === key) {
-                        name = k.replace('Key', '').replace('Digit', '').replace('Arrow', '');
-                        break;
+                let name = FRIENDLY_KEY_NAMES[key];
+                if (!name) {
+                    for (let k in DOM_TO_HID) {
+                        if (DOM_TO_HID[k] === key) {
+                            name = k.replace('Key', '').replace('Digit', '').replace('Arrow', '');
+                            break;
+                        }
                     }
                 }
+                if (!name) name = `Key(0x${key.toString(16).toUpperCase()})`;
                 parts.push(name);
             }
             return parts.join('+');
@@ -1819,7 +1888,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             selectActionMode(mode);
             renderTriggerView(mode, mod, key, cons);
             renderTargetLayerButtons();
-            document.getElementById('quick-key-select').value = '';
             if (mode === 1 || mode === 2 || mode === 7) {
                 startKeyboardRecording();
             }
@@ -1989,6 +2057,29 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
+        function syncQuickKeySelect(mod, key, cons) {
+            const sel = document.getElementById('quick-key-select');
+            if (!sel) return;
+            sel.value = '';
+            for (let i = 0; i < sel.options.length; i++) {
+                const val = sel.options[i].value;
+                if (!val) continue;
+                const p = val.split(':');
+                const pMod = parseHexOrDec(p[1]);
+                const pCode = parseHexOrDec(p[2]);
+                if (p[0] === 'c' && cons > 0 && pCode === cons) {
+                    sel.selectedIndex = i;
+                    return;
+                } else if (p[0] === 'm' && (!key || key === 0) && (!cons || cons === 0) && mod > 0 && pMod === mod) {
+                    sel.selectedIndex = i;
+                    return;
+                } else if (p[0] === 'k' && key > 0 && (!cons || cons === 0) && pMod === (mod || 0) && pCode === key) {
+                    sel.selectedIndex = i;
+                    return;
+                }
+            }
+        }
+
         function renderTriggerView(type, mod, key, cons) {
             const isVoice = (editingKey === 0x04 || editingKey === 0x3E);
             if (isVoice && currentEditingLayer === 0) {
@@ -2017,9 +2108,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const card = document.getElementById(`mode-card-${type}`);
             if (card) card.classList.add('selected');
 
-            document.getElementById('adv-mod').value = '0x' + (mod || 0).toString(16).toUpperCase().padStart(2, '0');
-            const codeVal = (key || cons || 0);
-            document.getElementById('adv-code').value = '0x' + codeVal.toString(16).toUpperCase().padStart(codeVal > 255 ? 4 : 2, '0');
+            if (document.activeElement !== document.getElementById('adv-mod')) {
+                document.getElementById('adv-mod').value = '0x' + (mod || 0).toString(16).toUpperCase().padStart(2, '0');
+            }
+            if (document.activeElement !== document.getElementById('adv-code')) {
+                const codeVal = (key || cons || 0);
+                document.getElementById('adv-code').value = '0x' + codeVal.toString(16).toUpperCase().padStart(codeVal > 255 ? 4 : 2, '0');
+            }
 
             const display = document.getElementById('recorded-badge-display');
             if (!display) return;
@@ -2031,11 +2126,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     tgtName = currentKeymap.layers[tgt].name || tgtName;
                 }
                 display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-cyan); color:var(--accent-cyan);">切入 ${tgtName}</span>`;
+                syncQuickKeySelect(0, 0, 0);
                 return;
             }
 
             if (type === 10) {
                 display.innerHTML = `<span class="kbd-chip" style="border-color:#93c5fd; color:#93c5fd;">继承默认层</span>`;
+                syncQuickKeySelect(0, 0, 0);
                 return;
             }
 
@@ -2049,19 +2146,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     else if (currentTriggerTab === 'double') mac = editingBinding.double_mac || '';
                 }
                 display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-orange); color:var(--accent-orange);">🌐 WOL 唤醒: ${mac || '未配置MAC'}</span>`;
+                syncQuickKeySelect(0, 0, 0);
                 return;
             }
 
             if (type === 0 || (!key && !cons && !mod)) {
                 display.innerHTML = '<span style="color: var(--text-muted); font-size: 14px; font-weight: normal;">未设置（敲击键盘录制，或在下方选择）</span>';
+                syncQuickKeySelect(0, 0, 0);
                 return;
             }
 
             let chips = [];
             if (mod & 0x01) chips.push('Ctrl');
+            if (mod & 0x08) chips.push('Win');
             if (mod & 0x04) chips.push('Alt');
             if (mod & 0x02) chips.push('Shift');
-            if (mod & 0x08) chips.push('Win');
 
             if (cons > 0) {
                 const consMap = {
@@ -2081,17 +2180,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 };
                 chips.push(consMap[cons] || `多媒体 0x${cons.toString(16).toUpperCase()}`);
             } else if (key > 0) {
-                let keyName = `Key(0x${key.toString(16).toUpperCase()})`;
-                for (let k in DOM_TO_HID) {
-                    if (DOM_TO_HID[k] === key) {
-                        keyName = k.replace('Key', '').replace('Digit', '').replace('Arrow', '');
-                        break;
+                let keyName = FRIENDLY_KEY_NAMES[key];
+                if (!keyName) {
+                    for (let k in DOM_TO_HID) {
+                        if (DOM_TO_HID[k] === key) {
+                            keyName = k.replace('Key', '').replace('Digit', '').replace('Arrow', '');
+                            break;
+                        }
                     }
                 }
+                if (!keyName) keyName = `Key(0x${key.toString(16).toUpperCase()})`;
                 chips.push(keyName);
             }
 
             display.innerHTML = chips.map(c => `<span class="kbd-chip">${c}</span>`).join(' + ');
+            syncQuickKeySelect(mod, key, cons);
         }
 
         function onToggleTriggerEnable(trigger) {
@@ -2194,7 +2297,6 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 loadTriggerDataToUI('click');
             }
 
-            document.getElementById('quick-key-select').value = '';
             document.getElementById('remap-modal').style.display = 'flex';
         }
 
