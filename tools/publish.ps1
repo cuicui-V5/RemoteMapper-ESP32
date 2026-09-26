@@ -8,7 +8,8 @@ $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $rootDir = Split-Path -Parent $PSScriptRoot
 $flasherDir = Join-Path $rootDir "RemoteMapper-Flasher"
-$binCheck = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_N16R8_full.bin"
+$binCheckFull = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_N16R8_full.bin"
+$binCheckBoot = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_N16R8_bootloader.bin"
 $sevenZipFile = Join-Path $rootDir "RemoteMapper-Flasher.7z"
 $zipFile = Join-Path $rootDir "RemoteMapper-Flasher.zip"
 $readmeInstructions = Join-Path $flasherDir "使用说明.txt"
@@ -33,7 +34,7 @@ $possiblePaths = @(
     "C:\Program Files (x86)\7-Zip\7z.exe"
 )
 foreach ($p in $possiblePaths) {
-    if (Test-Path $p) {
+    if (Test-Path -LiteralPath $p) {
         $sevenZip = $p
         break
     }
@@ -51,8 +52,8 @@ if (-not $sevenZip) {
 }
 
 # 3. 检查固件是否存在
-if (-not (Test-Path $binCheck)) {
-    Write-Host "[WARNING] 未检测到预编译固件！正在自动调用 build.bat 进行全目标编译..." -ForegroundColor Yellow
+if ((-not (Test-Path -LiteralPath $binCheckFull)) -or (-not (Test-Path -LiteralPath $binCheckBoot))) {
+    Write-Host "[WARNING] 未检测到预编译完整或分段固件！正在自动调用 build.bat 进行全目标编译..." -ForegroundColor Yellow
     & "$rootDir\build.bat" all
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] 固件编译失败，已终止发布流程！" -ForegroundColor Red
@@ -65,8 +66,8 @@ Write-Host "--------------------------------------------------------------------
 Write-Host "[1/2] 正在本地极速打包免环境刷机包..." -ForegroundColor Cyan
 
 # 清理旧临时文件
-if (Test-Path $sevenZipFile) { Remove-Item $sevenZipFile -Force }
-if (Test-Path $zipFile) { Remove-Item $zipFile -Force }
+if (Test-Path -LiteralPath $sevenZipFile) { Remove-Item $sevenZipFile -Force }
+if (Test-Path -LiteralPath $zipFile) { Remove-Item $zipFile -Force }
 
 # 压缩为 .7z 与 .zip
 & $sevenZip a -t7z -mx=9 $sevenZipFile $flasherDir -y | Out-Null
@@ -99,7 +100,7 @@ if ($LASTEXITCODE -eq 0) {
 }
 
 $notesParam = @()
-if (Test-Path $readmeInstructions) {
+if (Test-Path -LiteralPath $readmeInstructions) {
     $notesParam = @("-F", $readmeInstructions)
 } else {
     $notesParam = @("-n", "RemoteMapper-ESP32 最新构建免环境刷机包。")
