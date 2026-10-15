@@ -296,7 +296,7 @@ void key_engine_load_defaults(key_mapper_engine_t *engine) {
         memset(&b, 0, sizeof(b));
         b.source_vk = MI_KEY_BACK;
         b.has_click = true;
-        b.click_action = (key_action_t){ ACTION_CONSUMER_TAP, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_AC_BACK, 0 };
+        b.click_action = (key_action_t){ ACTION_CONSUMER_HOLD, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_AC_BACK, 0 };
         l0->bindings[l0->binding_count++] = b;
     }
 
@@ -320,31 +320,23 @@ void key_engine_load_defaults(key_mapper_engine_t *engine) {
         l0->bindings[l0->binding_count++] = b;
     }
 
-    // 11. Vol+: 0x80 -> Vol Up with repeat
+    // 11. Vol+: 0x80 -> Vol Up (Consumer Hold / Pass-Through)
     {
         key_binding_t b;
         memset(&b, 0, sizeof(b));
         b.source_vk = MI_KEY_VOL_UP;
         b.has_click = true;
-        b.click_action = (key_action_t){ ACTION_CONSUMER_TAP, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_UP, 0 };
-        b.has_repeat = true;
-        b.repeat_action = (key_action_t){ ACTION_CONSUMER_TAP, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_UP, 0 };
-        b.repeat_delay_ms = 350;
-        b.repeat_interval_ms = 70;
+        b.click_action = (key_action_t){ ACTION_CONSUMER_HOLD, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_UP, 0 };
         l0->bindings[l0->binding_count++] = b;
     }
 
-    // 12. Vol-: 0x81 -> Vol Down with repeat
+    // 12. Vol-: 0x81 -> Vol Down (Consumer Hold / Pass-Through)
     {
         key_binding_t b;
         memset(&b, 0, sizeof(b));
         b.source_vk = MI_KEY_VOL_DOWN;
         b.has_click = true;
-        b.click_action = (key_action_t){ ACTION_CONSUMER_TAP, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_DOWN, 0 };
-        b.has_repeat = true;
-        b.repeat_action = (key_action_t){ ACTION_CONSUMER_TAP, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_DOWN, 0 };
-        b.repeat_delay_ms = 350;
-        b.repeat_interval_ms = 70;
+        b.click_action = (key_action_t){ ACTION_CONSUMER_HOLD, USB_MOD_NONE, USB_KEY_NONE, USB_CONSUMER_VOLUME_DOWN, 0 };
         l0->bindings[l0->binding_count++] = b;
     }
 

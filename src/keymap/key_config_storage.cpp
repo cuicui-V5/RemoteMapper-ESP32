@@ -142,9 +142,17 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
             }
         }
 
+        // Auto-upgrade legacy ACTION_CONSUMER_TAP (4) to ACTION_CONSUMER_HOLD (5) for native pass-through
+        if (b.click_action.type == ACTION_CONSUMER_TAP) {
+            b.click_action.type = ACTION_CONSUMER_HOLD;
+        }
+
         b.has_long = obj["has_long"] | false;
         b.long_ms = parse_u32_or_hex(obj["long_ms"], 600);
         b.long_action.type = (key_action_type_t)parse_u32_or_hex(obj["long_type"], 1);
+        if (b.long_action.type == ACTION_CONSUMER_TAP) {
+            b.long_action.type = ACTION_CONSUMER_HOLD;
+        }
         b.long_action.modifier = (uint8_t)parse_u32_or_hex(obj["long_mod"], 0);
         b.long_action.key_code = (uint8_t)parse_u32_or_hex(obj["long_key"], 0);
         b.long_action.consumer_code = (uint16_t)parse_u32_or_hex(obj["long_cons"], 0);
@@ -156,6 +164,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         b.has_double = obj["has_double"] | false;
         b.double_ms = parse_u32_or_hex(obj["double_ms"], 250);
         b.double_action.type = (key_action_type_t)parse_u32_or_hex(obj["double_type"], 1);
+        if (b.double_action.type == ACTION_CONSUMER_TAP) {
+            b.double_action.type = ACTION_CONSUMER_HOLD;
+        }
         b.double_action.modifier = (uint8_t)parse_u32_or_hex(obj["double_mod"], 0);
         b.double_action.key_code = (uint8_t)parse_u32_or_hex(obj["double_key"], 0);
         b.double_action.consumer_code = (uint16_t)parse_u32_or_hex(obj["double_cons"], 0);

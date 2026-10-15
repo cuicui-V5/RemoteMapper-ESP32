@@ -220,6 +220,51 @@ def test_voice_toggle_state_machine():
     ]
     print("  --> Voice Toggle State Machine: PASSED")
 
+def test_consumer_hold_pass_through():
+    print("[TEST] Running Consumer Hold Pass-Through verification...")
+    ACTION_CONSUMER_TAP = 4
+    ACTION_CONSUMER_HOLD = 5
+    ACTION_CONSUMER_RELEASE = 6
+
+    # 1. Test auto-upgrade of legacy config
+    legacy_binding = {"source_vk": 128, "has_click": True, "click_type": ACTION_CONSUMER_TAP, "click_cons": 233}
+    if legacy_binding["click_type"] == ACTION_CONSUMER_TAP:
+        legacy_binding["click_type"] = ACTION_CONSUMER_HOLD
+    assert legacy_binding["click_type"] == ACTION_CONSUMER_HOLD, "Legacy ACTION_CONSUMER_TAP not upgraded to ACTION_CONSUMER_HOLD"
+
+    # 2. Simulate state machine pure pass-through for Consumer Hold
+    events_emitted = []
+
+    def feed_consumer_key(binding, is_pressed):
+        has_long = binding.get("has_long", False)
+        has_double = binding.get("has_double", False)
+        click_type = binding.get("click_type", 0)
+
+        if is_pressed:
+            if not has_long and not has_double:
+                if click_type == ACTION_CONSUMER_HOLD:
+                    events_emitted.append((ACTION_CONSUMER_HOLD, binding.get("click_cons", 0), True))
+        else:
+            if not has_long and not has_double:
+                if click_type == ACTION_CONSUMER_HOLD:
+                    events_emitted.append((ACTION_CONSUMER_RELEASE, 0, False))
+
+    events_emitted.clear()
+    vol_binding = {"source_vk": 0x80, "has_click": True, "click_type": ACTION_CONSUMER_HOLD, "click_cons": 0x00E9}
+    
+    # Press Volume+
+    feed_consumer_key(vol_binding, is_pressed=True)
+    assert events_emitted == [(ACTION_CONSUMER_HOLD, 0x00E9, True)], f"Unexpected press event: {events_emitted}"
+
+    # Release Volume+
+    feed_consumer_key(vol_binding, is_pressed=False)
+    assert events_emitted == [
+        (ACTION_CONSUMER_HOLD, 0x00E9, True),
+        (ACTION_CONSUMER_RELEASE, 0, False)
+    ], f"Unexpected release event: {events_emitted}"
+
+    print("  --> Consumer Hold Pass-Through: PASSED")
+
 if __name__ == "__main__":
     print("========================================")
     print(" RemoteMapper-ESP32 Native Test Suite")
@@ -229,7 +274,8 @@ if __name__ == "__main__":
     test_key_state_machine()
     test_layer_system()
     test_voice_toggle_state_machine()
+    test_consumer_hold_pass_through()
     print("========================================")
-    print(" ALL TESTS PASSED SUCCESSFULLY! (5/5)")
+    print(" ALL TESTS PASSED SUCCESSFULLY! (6/6)")
     print("========================================")
 

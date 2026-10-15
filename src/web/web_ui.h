@@ -887,27 +887,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <div id="mode-selector-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(88px, 1fr)); gap: 8px;">
                     <div class="mode-card" id="mode-card-2" onclick="selectActionMode(2)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">键盘直通</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">支持按住连发</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">按多久生效多久</div>
                     </div>
                     <div class="mode-card" id="mode-card-1" onclick="selectActionMode(1)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">单次点按</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">组合快捷键</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">只触发一次快捷键</div>
                     </div>
-                    <div class="mode-card" id="mode-card-4" onclick="selectActionMode(4)">
+                    <div class="mode-card" id="mode-card-5" onclick="selectActionMode(5)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">多媒体控制</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">音量/播放/休眠</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">音量加减/播放暂停</div>
                     </div>
                     <div class="mode-card" id="mode-card-9" onclick="selectActionMode(9)">
-                        <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">切换层级</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">切换目标层</div>
+                        <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">切换按键层</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">切到其他功能层</div>
                     </div>
                     <div class="mode-card" id="mode-card-11" onclick="selectActionMode(11)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">高级扩展</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">WOL网络唤醒等</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">局域网开机(WOL)等</div>
                     </div>
                     <div class="mode-card" id="mode-card-10" onclick="selectActionMode(10)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">穿透继承</div>
-                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">继承默认层配置</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">使用默认层配置</div>
                     </div>
                 </div>
             </div>
@@ -1275,6 +1275,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     bindings: []
                 });
             }
+            // Auto-upgrade legacy Consumer Tap (4) to Consumer Hold (5) for native pass-through
+            currentKeymap.layers.forEach(l => {
+                if (l.bindings && Array.isArray(l.bindings)) {
+                    l.bindings.forEach(b => {
+                        if (b.has_click && b.click_type === 4) b.click_type = 5;
+                        if (b.has_long && b.long_type === 4) b.long_type = 5;
+                        if (b.has_double && b.double_type === 4) b.double_type = 5;
+                    });
+                }
+            });
         }
 
         function switchTab(id) {
@@ -1409,11 +1419,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             0x50: { source_vk: 0x50, has_click: true, click_type: 2, click_mod: 0, click_key: 80, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
             0x4F: { source_vk: 0x4F, has_click: true, click_type: 2, click_mod: 0, click_key: 79, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
             0x28: { source_vk: 0x28, has_click: true, click_type: 2, click_mod: 0, click_key: 40, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
-            0xF1: { source_vk: 0xF1, has_click: true, click_type: 4, click_mod: 0, click_key: 0, click_cons: 0x0224, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
+            0xF1: { source_vk: 0xF1, has_click: true, click_type: 5, click_mod: 0, click_key: 0, click_cons: 0x0224, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
             0x24: { source_vk: 0x24, has_click: true, click_type: 1, click_mod: 8, click_key: 7, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
             0x5D: { source_vk: 0x5D, has_click: true, click_type: 1, click_mod: 0, click_key: 44, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
-            0x80: { source_vk: 0x80, has_click: true, click_type: 4, click_mod: 0, click_key: 0, click_cons: 0x00E9, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
-            0x81: { source_vk: 0x81, has_click: true, click_type: 4, click_mod: 0, click_key: 0, click_cons: 0x00EA, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
+            0x80: { source_vk: 0x80, has_click: true, click_type: 5, click_mod: 0, click_key: 0, click_cons: 0x00E9, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
+            0x81: { source_vk: 0x81, has_click: true, click_type: 5, click_mod: 0, click_key: 0, click_cons: 0x00EA, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 },
             0xC0: { source_vk: 0xC0, has_click: true, click_type: 1, click_mod: 0, click_key: 65, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 }
         };
 
@@ -1803,7 +1813,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.click_mac = wolMac;
                     editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
                     editingBinding.has_click = (wolMac.length >= 12);
-                } else if (mode === 4) {
+                } else if (mode === 4 || mode === 5) {
+                    editingBinding.click_type = 5;
                     editingBinding.click_cons = code;
                     editingBinding.click_key = 0; editingBinding.click_mod = 0;
                     editingBinding.has_click = (code > 0);
@@ -1814,7 +1825,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.has_click = (mode !== 0 && (code > 0 || mod > 0));
                 }
             } else if (currentTriggerTab === 'long') {
-                editingBinding.long_type = mode;
+                editingBinding.long_type = (mode === 4 || mode === 5) ? 5 : mode;
                 if (mode === 9) {
                     editingBinding.long_layer = selectedTargetLayer;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
@@ -1823,7 +1834,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.long_mac = wolMac;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
-                } else if (mode === 4) {
+                } else if (mode === 4 || mode === 5) {
                     editingBinding.long_cons = code;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0;
                 } else {
@@ -1832,7 +1843,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.long_cons = 0;
                 }
             } else if (currentTriggerTab === 'double') {
-                editingBinding.double_type = mode;
+                editingBinding.double_type = (mode === 4 || mode === 5) ? 5 : mode;
                 if (mode === 9) {
                     editingBinding.double_layer = selectedTargetLayer;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
@@ -1841,7 +1852,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.double_mac = wolMac;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
-                } else if (mode === 4) {
+                } else if (mode === 4 || mode === 5) {
                     editingBinding.double_cons = code;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0;
                 } else {
@@ -1920,6 +1931,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         function selectActionMode(mode, skipRender = false) {
+            if (mode === 4 || mode === 5) mode = 5;
             currentSelectedMode = mode;
             const inst = document.getElementById('recorder-instruction');
             const quickSelect = document.getElementById('quick-key-select');
@@ -1930,7 +1942,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const advActionBox = document.getElementById('adv-action-config-box');
 
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-            const card = document.getElementById(`mode-card-${mode}`);
+            const cardId = (mode === 5) ? 'mode-card-5' : `mode-card-${mode}`;
+            const card = document.getElementById(cardId) || document.getElementById(`mode-card-${mode}`);
             if (card) card.classList.add('selected');
 
             if (mode === 9) {
@@ -1964,20 +1977,20 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 let curMod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
                 let curCode = parseHexOrDec(document.getElementById('adv-code').value) || 0;
 
-                if (mode === 4) {
-                    if (inst) inst.innerHTML = '<b>多媒体控制模式</b>：在下方下拉框中选择具体的控制功能';
+                if (mode === 5 || mode === 4) {
+                    if (inst) inst.innerHTML = '<b>多媒体控制</b>：控制电脑音量、播放暂停等（音量加减支持按住连续调节）';
                     let curCons = curCode >= 500 ? curCode : 545;
                     if (!skipRender) {
-                        renderTriggerView(4, 0, 0, curCons);
+                        renderTriggerView(5, 0, 0, curCons);
                         if (quickSelect) quickSelect.value = `c:0:${curCons}`;
                     }
                 } else if (mode === 1) {
-                    if (inst) inst.innerHTML = '<b>单次点按模式</b>：按下按键发送一次按键或组合快捷键（敲击键盘直接录制）';
+                    if (inst) inst.innerHTML = '<b>单次点按模式</b>：无论按住多久都只触发一次（适合 Ctrl+C、Win+D 等组合快捷键）';
                     let curKey = (curCode > 0 && curCode < 500) ? curCode : ((curMod > 0) ? 0 : 0x28);
                     if (!skipRender) renderTriggerView(1, curMod, curKey, 0);
                     startKeyboardRecording();
                 } else if (mode === 2) {
-                    if (inst) inst.innerHTML = '<b>键盘直通模式</b>：按住按键时持续发送（敲击键盘直接录制）';
+                    if (inst) inst.innerHTML = '<b>键盘直通模式</b>：像普通键盘一样按住多久生效多久（适合方向键、字母键、长按连续输入）';
                     let curKey = (curCode > 0 && curCode < 500) ? curCode : ((curMod > 0) ? 0 : 0x2C);
                     if (!skipRender) renderTriggerView(2, curMod, curKey, 0);
                     startKeyboardRecording();
@@ -2146,8 +2159,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (isVoice && currentEditingLayer === 0) {
                 if (type !== 15) type = 7;
                 cons = 0;
-            } else if (type === 4 || cons > 0) {
-                type = 4;
+            } else if (type === 4 || type === 5 || cons > 0) {
+                type = 5;
                 key = 0;
                 mod = 0;
             } else if (type === 9) {
@@ -2166,7 +2179,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             currentSelectedMode = type;
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-            const card = document.getElementById(`mode-card-${type}`);
+            const cardId = (type === 4 || type === 5) ? 'mode-card-5' : `mode-card-${type}`;
+            const card = document.getElementById(cardId) || document.getElementById(`mode-card-${type}`);
             if (card) card.classList.add('selected');
 
             if (document.activeElement !== document.getElementById('adv-mod')) {
@@ -2386,13 +2400,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('quick-key-select').value = '';
                     return;
                 }
-                selectActionMode(4);
-                renderTriggerView(4, 0, 0, code);
+                selectActionMode(5);
+                renderTriggerView(5, 0, 0, code);
             } else if (prefix === 'm') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, 0, 0);
             } else if (prefix === 'k') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, code, 0);
             }
         }
@@ -2404,8 +2418,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             if (isVoice && currentEditingLayer === 0) {
                 renderTriggerView(currentSelectedMode, mod, code, 0);
-            } else if (currentSelectedMode === 4 || code >= 500) {
-                renderTriggerView(4, 0, 0, code);
+            } else if (currentSelectedMode === 4 || currentSelectedMode === 5 || code >= 500) {
+                renderTriggerView(5, 0, 0, code);
             } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) {
                 renderTriggerView(currentSelectedMode, 0, 0, 0);
             } else {
