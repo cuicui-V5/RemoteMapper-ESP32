@@ -8,6 +8,26 @@
 
 ---
 
+## ⚡ 极速开始：网页端一键免驱动刷机（零环境，即插即刷）
+
+无需下载安装任何 Python、PlatformIO、Git、驱动或编译工具，准备一根 Type-C 数据线，在电脑浏览器中即可完成固件写入与升级！
+
+> 🌐 **项目官网**：[https://cuicui-v5.github.io/RemoteMapper-ESP32/](https://cuicui-v5.github.io/RemoteMapper-ESP32/) | **网页免驱线刷平台**：[https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html](https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html)
+
+### 极速刷机 3 步操作：
+1. **硬件连接**：使用具备数据传输功能的 Type-C 数据线，连接电脑与 ESP32-S3 开发板的 **USB / OTG** 接口（双口板切勿插在 COM/UART 口）。
+2. **手动进入刷机模式（关键）**：
+   👉 **按住开发板上的 `BOOT` 键不放 &rarr; 点按一下 `RST` 重启键并松开 &rarr; 最后松开 `BOOT` 键**（此时芯片即进入 Bootloader 下载模式）。
+3. **一键写入与手动重启**：
+   - 打开 [网页在线刷机平台](https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html)，点击 **「连接开发板」**；
+   - 平台将**自动识别芯片规格并智能检测是否已安装过本项目**（新板自动全量刷写，老用户自动保留已有 Wi-Fi 与按键映射升级）；
+   - 点击 **「立即开始刷机」**，约 15 秒写入完成；
+   - **👉 烧录完成后，必须手动按一下开发板上的【RST】按键重启设备！**
+     - 全新刷机：手机连接热点 `RemoteMapper-AP`（无密码），打开浏览器访问 `http://192.168.4.1` 开始配置。
+     - 保留配置升级：原有 Wi-Fi、热点与按键映射全部保留，直接使用即可。
+
+---
+
 ## 背景与解决的问题
 
 在 Windows 系统下直接使用小米蓝牙遥控器 2 Pro 时，存在两处系统级限制：
@@ -138,10 +158,12 @@
 > 🌐 **在线刷机入口**：[https://cuicui-v5.github.io/RemoteMapper-ESP32/](https://cuicui-v5.github.io/RemoteMapper-ESP32/) （备用地址：[http://cuijunyu.win/RemoteMapper-ESP32/](http://cuijunyu.win/RemoteMapper-ESP32/)）
 
 1. 使用 **Chrome、Edge、Brave 或 Opera 浏览器**（PC 端）打开上述刷机网页；
-2. 用 Type-C 数据线连接 ESP32-S3 开发板的 **USB / OTG** 接口；
-3. 点击网页上的 **「连接开发板 (Connect)」** 并选择对应的串口设备；
-4. 页面将**全自动读取芯片 Flash 容量与 PSRAM 规格，并自动匹配对应固件**；
-5. 选择「全新刷机」或「保留配置升级」，点击 **「立即开始刷机」** 即可在 15 秒内完成烧录与自动复位。
+2. 用具备数据传输功能的 Type-C 数据线连接 ESP32-S3 开发板的 **USB / OTG** 接口；
+3. **手动进入刷机模式（关键）**：按住开发板上的 **`BOOT`** 键不放 &rarr; 点按一下 **`RST`** 重启键并松开 &rarr; 最后松开 **`BOOT`** 键；
+4. 点击网页上的 **「连接开发板 (Connect)」** 并选择对应的串口设备；
+5. 页面将**全自动读取芯片 Flash 容量与 PSRAM 规格，并自动匹配对应固件**；
+6. 选择「全新刷机」或「保留配置升级」，点击 **「立即开始刷机」** 写入固件；
+7. **👉 烧录完成后，手动按一下开发板上的【RST】重启按键即可开机运行！**
 
 ---
 

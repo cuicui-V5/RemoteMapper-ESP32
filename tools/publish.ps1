@@ -1,4 +1,4 @@
-﻿param(
+param(
     [string]$TagName = "release"
 )
 
@@ -124,7 +124,19 @@ $ghPagesTempDir = Join-Path $env:TEMP ("remotemapper-ghpages-" + [System.Guid]::
 try {
     New-Item -ItemType Directory -Path $ghPagesTempDir -Force | Out-Null
     Copy-Item "$webFlasherDir\index.html" "$ghPagesTempDir\" -Force
+    if (Test-Path -LiteralPath "$webFlasherDir\flash.html") {
+        Copy-Item "$webFlasherDir\flash.html" "$ghPagesTempDir\" -Force
+    }
+    if (Test-Path -LiteralPath "$webFlasherDir\i18n.js") {
+        Copy-Item "$webFlasherDir\i18n.js" "$ghPagesTempDir\" -Force
+    }
     Copy-Item "$webFlasherDir\esptool-bundle.js" "$ghPagesTempDir\" -Force
+    if (Test-Path -LiteralPath "$webFlasherDir\robots.txt") {
+        Copy-Item "$webFlasherDir\robots.txt" "$ghPagesTempDir\" -Force
+    }
+    if (Test-Path -LiteralPath "$webFlasherDir\sitemap.xml") {
+        Copy-Item "$webFlasherDir\sitemap.xml" "$ghPagesTempDir\" -Force
+    }
 
     $firmwareDestDir = Join-Path $ghPagesTempDir "firmware"
     New-Item -ItemType Directory -Path $firmwareDestDir -Force | Out-Null
