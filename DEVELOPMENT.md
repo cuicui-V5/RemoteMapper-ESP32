@@ -22,6 +22,7 @@
 11. [源码文件索引与模块依赖关系](#十一-源码文件索引与模块依赖关系)
 12. [编译、烧录与测试指南](#十二-编译烧录与测试指南)
 13. [故障排查手册与常见问题 (Troubleshooting)](#十三-故障排查手册与常见问题-troubleshooting)
+14. [Web 网页端生态架构与 GitHub Pages 持续部署管道](#十四-web-网页端生态架构与-github-pages-持续部署管道)
 
 ---
 
@@ -334,6 +335,15 @@ D:\tool\RemoteMapper-ESP32/
 │   └── cli/                    # 串口诊断模块
 │       ├── cli_manager.h       # CDC CLI 接口
 │       └── cli_manager.cpp     # JSON 命令行解析器
+├── web-flasher/                # 网页端免驱在线刷机与官方展示门户
+│   ├── index.html              # 官方产品主页 (SEO 优化、方案对比、教程指南)
+│   ├── flash.html              # 独立免驱在线刷机控制台 (Web Serial 驱动)
+│   ├── i18n.js                 # 客户端双语国际化引擎 (中英自适应、跨页同步)
+│   ├── esptool-bundle.js       # 浏览器端 WebAssembly/JS 版 esptool 烧录内核
+│   ├── robots.txt              # 搜索引擎爬虫抓取协议
+│   └── sitemap.xml             # 搜索引擎站点地图 (支持 hreflang 标注)
+├── tools/                      # 自动化构建与发布脚本
+│   └── publish.ps1             # 一键打包 Releases 并部署至 gh-pages 分支
 ├── pc_companion/               # PC 本地伴侣程序
 │   ├── remotemapper_host.py    # Win32 RegisterHotKey 高性能守护进程
 │   ├── config.json             # F13 ~ F24 本地脚本绑定配置文件
@@ -396,6 +406,144 @@ test.bat
 ### Q4: 音量加减在 Windows 下变成打开搜索栏？
 - **排查步骤**：
   1. 检查 WebUI 下拉菜单或 NVS 中音量键的键码，音量加标准 USB Consumer 键码为 **`0x00E9` (233)**，音量减为 **`0x00EA` (234)**；切勿使用旧版错误的 `545`（`0x0221` 代表 AC Search 全局搜索）。
+
+---
+
+# 十四. Web 网页端生态架构与 GitHub Pages 持续部署管道
+
+为了彻底降低普通用户的上手门槛，消除传统单片机开发需配置 Python、esptool、串口驱动及编译链的“技术壁垒”，RemoteMapper-ESP32 建立了基于 **W3C Web Serial API** 的纯客户端免驱刷机与官方展示生态，并设计了**零仓库体积冗余的 GitHub Pages 持续部署管道**。
+
+```text
+┌──────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   Web 生态与持续部署架构全景                                        │
+├───────────────────────────────────────┬──────────────────────────────────────────────────────────┤
+│             开发与维护链路             │                        访客与用户链路                     │
+├───────────────────────────────────────┼──────────────────────────────────────────────────────────┤
+│ 1. PlatformIO 源码编译 (build.bat)    │ 1. 访问官方展示主页 (index.html)                          │
+│    • 生成各型号 _full.bin & _app.bin   │    • 双语自适应展示 (中/英 零刷新即时切换)                 │
+│ 2. 一键发布管道 (tools/publish.ps1)   │    • 方案优劣对比、拓扑架构与 5 步极速上手指南            │
+│    • 打包 7z/zip 离线工具包           │    • 符合 Google 标准的 SEO / JSON-LD / Sitemap 抓取索引 │
+│    • 直传 GitHub Releases 附件        │ 2. 一键直达在线刷机平台 (flash.html)                      │
+│    • 建立孤立分支 (gh-pages) 强推覆盖 │    • Web Serial 浏览器原生免驱动串口握手 (460800 波特率) │
+│    • 固件与静态资源同步至边缘 CDN     │    • JEDEC Flash ID & eFuse 自动识别开发板型号           │
+│ 3. 根治 Git 膨胀机制                  │    • 芯片固件与 NVS 特征探测 (智能选择全新刷机/保留配置)  │
+│    • Master 仅保留纯轻量前端代码       │    • 纯前端 WebAssembly/JS 流式烧录 (15 秒完成)          │
+│    • gh-pages 永远单一提交覆盖历史    │    • 手动 Bootloader 强引导与完成后手动 RST 重启防呆      │
+└───────────────────────────────────────┴──────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 1. 双页面解耦设计与职责分离
+
+项目将传统臃肿的嵌入式刷机网页拆分为两个独立的单页应用（SPA）：
+
+* **项目官方展示主页 (`web-flasher/index.html`)**：
+  - **核心职责**：品牌宣传、软硬件方案深度对比、5 大核心特性解析、纯硬件拓扑展示、全流程使用教程与 FAQ 排查指南。
+  - **轻量无负担**：页面不加载庞大的 WebAssembly 固件与 esptool 内核，确保首屏加载时间小于 300ms。
+  - **清晰转化路径**：点击 Hero 首屏的「⚡ 立刻使用」或「网页在线刷机」平滑跳转至独立刷机平台。
+
+* **独立免驱在线刷机平台 (`web-flasher/flash.html`)**：
+  - **核心职责**：专注于 Web Serial 底层通信、开发板硬件探测与固件烧录。
+  - **纯前端沙箱**：所有通信均在浏览器端运行，不产生任何后台服务器开销，用户数据完全私密。
+
+---
+
+### 2. Web Serial 免驱刷机核心原理
+
+传统单片机烧录需要用户安装 Python 环境、通过 pip 安装 esptool、安装 CH340/CP2102 驱动，极易因依赖冲突或权限问题导致烧录失败。
+
+RemoteMapper 采用现代化浏览器方案：
+1. **浏览器底层驱动**：利用 Chrome / Edge / Opera 提供的 **Web Serial API**，直接与操作系统内核通信，经由开发板的 Native USB 口（GPIO 19/20）读写 CDC ACM 字节流。
+2. **纯 JS 版 esptool 内核 (`esptool-bundle.js`)**：将乐鑫官方 ROM 通信协议（SLIP 封包、MD5 校验、Flash 解包、波特率自适应协商）打包为纯前端 ES Module。
+3. **极速烧录通道**：默认采用 **460800** 高速波特率进行数据传输，全量 16MB 镜像仅刷写实际有效数据段，烧录全程仅需约 **10~20 秒**。
+
+---
+
+### 3. 硬件自动识别与智能检测算法
+
+为了最大限度降低用户的心智负担，刷机控制台集成了多维度自动探测逻辑：
+
+#### A. 硬件型号规格自动探测 (`autoMatchModel`)
+* 通过调用 `esploader.detectFlashSize()` 读取 SPI Flash JEDEC ID，自动识别 16MB、8MB 或 4MB 容量；
+* 通过 `esploader.chip.getPsramCap()` 读取芯片 eFuse 寄存器，自动识别 8MB (Octal) 或 2MB (Quad) PSRAM；
+* 探测完成后，下拉列表自动选中匹配型号（如 `N16R8`, `N8R8`, `N8R2`, `N4R2`），并在界面打上绿色验证角标。
+
+#### B. 已有固件与配置自愈检测 (`detectExistingProject`)
+当芯片与浏览器握手成功后，前端会在烧录前主动执行轻量探测：
+1. **固件签名探测**：尝试读取芯片 `0x10000`（应用程序分区入口）的前 1KB 字节，检索 `RemoteMapper` 专有固件签名；
+2. **NVS 配置探测**：尝试读取 `0x9000`（NVS 存储分区），检索是否存在 `keymap_conf` 或 `wifi_conf` 命名空间记录；
+3. **智能决策**：
+   * **老用户升级模式（保留配置）**：若探测到现有项目特征，系统自动弹出绿色指引横幅，并**自动预选【保留配置升级】**（仅刷入 `0x10000` 应用程序区，完全避开 `0x9000` NVS 分区），用户的 Wi-Fi、按键映射及蓝牙配对数据 100% 保留！
+   * **全新芯片模式（完整出厂）**：若未检测到特征（空白芯片或已被全盘擦除），系统自动弹出青色指引横幅，并**自动预选【全量全新刷机】**（写入 `0x0` 包含 bootloader、分区表与出厂应用镜像）。
+
+#### C. Bootloader 物理按键与重启防呆机制
+市面上绝大多数 ESP32-S3 开发板硬件上未配置可通过 USB DTR/RTS 自动拉低 GPIO0 的复位电路。为此，页面设计了强引导机制：
+* **进入刷机模式引导**：通过图文步骤强制提示用户物理组合键：**按住 BOOT 键 ➔ 点按 RST 键 ➔ 松开 BOOT 键**；
+* **完成重启指引**：烧录成功后，界面弹出醒目提示，提醒用户**手动按一下开发板的【RST】按键**（或重新拔插一次 USB 线）以正常退出 Bootloader 并开机运行。
+
+---
+
+### 4. 客户端双语自适应国际化系统 (`i18n.js`)
+
+为了让海内外用户与开发者均能无障碍使用，页面集成了轻量级零依赖的双语引擎：
+* **自适应语言探测**：优先读取 `localStorage.getItem('rm_lang')`；首次访问时通过 `navigator.language` 自动识别（中文系统默认进入 `zh-CN`，海外系统自动进入 `en`）。
+* **DOM 自动化更新**：
+  - 纯文本节点绑定：`data-i18n="key"`
+  - 富文本格式绑定：`data-i18n-html="key"`
+* **跨页状态共享**：用户在官网切换语言后，选择会被持久化；点击进入刷机平台无需二次切换，始终保持统一语言。
+* **响应式事件派发**：切换语言时触发 `window.dispatchEvent(new CustomEvent('rm-lang-change'))`，确保由 JavaScript 动态生成的硬件检测横幅与控制台日志能够同步多语言更新。
+
+---
+
+### 5. 全套 Google SEO 技术标准体系
+
+为使项目在 Google 搜索（如搜索 `RemoteMapper`, `ESP32-S3 Xiaomi Remote`, `小米蓝牙遥控器 Windows` 等）中获得优先排名与富摘要展示，系统实施了严谨的 SEO 规范：
+
+* **Meta 与 Open Graph 规范**：配置完备的 `title`, `description`, `keywords`, `robots`（index, follow）及 `og:*` 社交卡片。
+* **规范链接与 hreflang**：
+  ```html
+  <link rel="canonical" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="zh-CN" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="en" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="x-default" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  ```
+  告知 Google 爬虫该网站的原生多语言版本，避免被误判为重复内容或权重分散。
+* **Schema.org 结构化数据 (JSON-LD)**：嵌入 `SoftwareApplication` 微数据，利于 Google 展现免费实用工具摘要卡片。
+* **站点地图与抓取协议**：
+  * `robots.txt`：允许所有合法爬虫抓取，并指明 Sitemap 绝对路径。
+  * `sitemap.xml`：为 `/` 与 `/flash.html` 声明抓取优先级、更新频率及双语链接映射。
+
+---
+
+### 6. 孤立分支 (`gh-pages`) 零冗余自动化持续部署管道
+
+#### A. 为什么不把固件直接提交到 Master？
+每次构建输出的预编译二进制固件（包含 4 个型号的全量包与应用程序包）总计有数十兆。如果把这些二进制文件直接提交到 `master` 主分支，日积月累会导致 `.git` 文件夹体积迅速膨胀至几百兆甚至上吉字节（GB），造成克隆和拉取极度缓慢。
+
+#### B. 自动化部署管道工作原理 (`tools/publish.ps1`)
+为彻底解决此问题，项目设计了基于**孤立分支 (Orphan Branch)** 的持续集成发布脚本：
+
+```text
+[本地执行 tools/publish.ps1]
+  │
+  ├─ 1. 本地极速归档 7z / zip 免环境刷机包
+  │
+  ├─ 2. 调用 GitHub CLI (gh release create) 直传附件至 GitHub Releases
+  │
+  └─ 3. 自动化部署 Web 刷机平台至 GitHub Pages:
+         │
+         ├─ 在系统临时目录 ($env:TEMP) 创建干净工作区
+         ├─ 复制静态网页、脚本与 SEO 文件 (index.html, flash.html, i18n.js, robots.txt, sitemap.xml)
+         ├─ 复制最新编译的固件至临时工作区的 firmware/ 目录
+         ├─ 写入 .nojekyll (禁用 Jekyll，确保二进制 .bin 与下划线文件原样分发)
+         ├─ git init 并在临时工作区检出独立分支: git checkout -b gh-pages
+         └─ 核心指令: git push origin gh-pages --force
+```
+
+#### C. 技术优势
+1. **GitHub 仓库零体积负担**：通过 `git push --force`，GitHub 上的 `gh-pages` 分支**永远只保留最后一次发布的单次提交（Orphan Commit）**，历史旧固件自动被覆盖销毁，服务器存储永远只占用一份最新固件的大小。
+2. **边缘 CDN 自动更新**：推送完成后，GitHub Pages 服务自动拉取 `gh-pages` 分支根目录，并在全球 Fastly/Varnish CDN 边缘节点秒级生效，实现高可用、零服务器成本的纯静态全栈体验。
 
 ---
 
