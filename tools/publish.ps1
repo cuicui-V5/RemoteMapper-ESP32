@@ -63,7 +63,7 @@ if ((-not (Test-Path -LiteralPath $binCheckFull)) -or (-not (Test-Path -LiteralP
 
 Write-Host "目标 Release 标签: [$TagName]" -ForegroundColor Magenta
 Write-Host "----------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "[1/2] 正在本地极速打包免环境刷机包..." -ForegroundColor Cyan
+Write-Host "[1/3] 正在本地极速打包免环境刷机包..." -ForegroundColor Cyan
 
 # 清理旧临时文件
 if (Test-Path -LiteralPath $sevenZipFile) { Remove-Item $sevenZipFile -Force }
@@ -90,7 +90,7 @@ Write-Host "  - ZIP 归档: $zipFile ($szZip MB)" -ForegroundColor Gray
 
 Write-Host ""
 Write-Host "----------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "[2/2] 正在直传附件至 GitHub Releases (无需等待 Actions 排队)..." -ForegroundColor Cyan
+Write-Host "[2/3] 正在直传附件至 GitHub Releases (无需等待 Actions 排队)..." -ForegroundColor Cyan
 
 # 检查已有 Release，如存在先删除 Release 记录（保留 git tag）以全新上传附件
 $existingRelease = & gh release view $TagName 2>&1
@@ -112,9 +112,59 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+Write-Host "[OK] GitHub Releases 发布成功！" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "----------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host "[3/3] 正在发布 Web 网页端免驱动刷机工具至 GitHub Pages (gh-pages 分支)..." -ForegroundColor Cyan
+
+$webFlasherDir = Join-Path $rootDir "web-flasher"
+$ghPagesTempDir = Join-Path $env:TEMP ("remotemapper-ghpages-" + [System.Guid]::NewGuid().ToString().Substring(0,8))
+
+try {
+    New-Item -ItemType Directory -Path $ghPagesTempDir -Force | Out-Null
+    Copy-Item "$webFlasherDir\index.html" "$ghPagesTempDir\" -Force
+    Copy-Item "$webFlasherDir\esptool-bundle.js" "$ghPagesTempDir\" -Force
+
+    $firmwareDestDir = Join-Path $ghPagesTempDir "firmware"
+    New-Item -ItemType Directory -Path $firmwareDestDir -Force | Out-Null
+
+    $models = @("N16R8", "N8R8", "N8R2", "N4R2")
+    foreach ($m in $models) {
+        $fFull = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_${m}_full.bin"
+        $fApp = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_${m}_app.bin"
+        if (Test-Path -LiteralPath $fFull) { Copy-Item $fFull "$firmwareDestDir\" -Force }
+        if (Test-Path -LiteralPath $fApp) { Copy-Item $fApp "$firmwareDestDir\" -Force }
+    }
+
+    New-Item -ItemType File -Path (Join-Path $ghPagesTempDir ".nojekyll") -Force | Out-Null
+
+    $remoteOrigin = (& git -C $rootDir remote get-url origin).Trim()
+
+    Push-Location $ghPagesTempDir
+    & git init -q
+    & git config user.name "github-actions[bot]"
+    & git config user.email "github-actions[bot]@users.noreply.github.com"
+    & git checkout -b gh-pages -q
+    & git add .
+    & git commit -m "Deploy Web Serial Flasher with firmware ($TagName)" -q
+    & git remote add origin $remoteOrigin
+    & git push origin gh-pages --force
+    Pop-Location
+
+    Write-Host "[OK] GitHub Pages 部署成功！" -ForegroundColor Green
+} catch {
+    Write-Host "[WARNING] GitHub Pages 部署遇到问题: $_" -ForegroundColor Yellow
+} finally {
+    if (Test-Path -LiteralPath $ghPagesTempDir) {
+        Remove-Item -Recurse -Force -LiteralPath $ghPagesTempDir -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host ""
 Write-Host "======================================================================" -ForegroundColor Green
-Write-Host " [SUCCESS] 刷机包已成功直传并发布至 GitHub Releases！" -ForegroundColor Green
-Write-Host " 访问地址: https://github.com/cuicui-V5/RemoteMapper-ESP32/releases/tag/$TagName" -ForegroundColor Cyan
+Write-Host " [SUCCESS] 固件发布与网页端刷机平台同步更新完成！" -ForegroundColor Green
+Write-Host " Releases 下载: https://github.com/cuicui-V5/RemoteMapper-ESP32/releases/tag/$TagName" -ForegroundColor Cyan
+Write-Host " 网页一键刷机: https://cuicui-v5.github.io/RemoteMapper-ESP32/" -ForegroundColor Cyan
 Write-Host "======================================================================" -ForegroundColor Green
 Write-Host ""

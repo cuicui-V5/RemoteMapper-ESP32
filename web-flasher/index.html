@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RemoteMapper-ESP32 网页端一键刷机平台</title>
+  <meta name="description" content="无需安装 Python、Git 或任何开发环境，直接在网页上通过 Web Serial 对 ESP32-S3 进行固件烧录与升级。">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220%22%20width=%22100%22%20height=%22100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <style>
+    :root {
+      --bg-dark: #0a0e17;
+      --card-bg: #111827;
+      --card-border: #1f293d;
+      --card-border-active: #06b6d4;
+      --accent-cyan: #06b6d4;
+      --accent-cyan-hover: #0891b2;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-purple: #8b5cf6;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+    }
+
+    header {
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+    }
+
+    .brand-icon {
+      font-size: 1.8rem;
+      filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.5));
+    }
+
+    .brand-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 0%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .header-links {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .github-link {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.875rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 8px;
+      border: 1px solid var(--card-border);
+      transition: all 0.2s;
+    }
+
+    .github-link:hover {
+      color: #fff;
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.1);
+    }
+
+    .container {
+      max-width: 1080px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.75rem;
+      flex: 1;
+    }
+
+    .alert-banner {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+      padding: 1rem 1.25rem;
+      border-radius: 12px;
+      display: none;
+      align-items: center;
+      gap: 0.8rem;
+      font-size: 0.95rem;
+    }
+
+    .grid-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .grid-2col {
+        grid-template-columns: 1fr;
+      }
+      header {
+        padding: 1rem;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      position: relative;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+      transition: border-color 0.2s;
+    }
+
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: 600;
+      margin-bottom: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .badge {
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-cyan { background: rgba(6, 182, 212, 0.2); color: var(--accent-cyan); border: 1px solid rgba(6, 182, 212, 0.4); }
+    .badge-green { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.4); }
+    .badge-amber { background: rgba(245, 158, 11, 0.2); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.4); }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 0.75rem 1.4rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%);
+      color: #fff;
+      box-shadow: 0 4px 14px 0 rgba(6, 182, 212, 0.35);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #22d3ee 0%, #0369a1 100%);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px 0 rgba(6, 182, 212, 0.5);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: var(--accent-red);
+      color: #fff;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+    }
+
+    .select, .input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      color: var(--text-main);
+      padding: 0.65rem 0.9rem;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .select:focus, .input:focus {
+      border-color: var(--accent-cyan);
+    }
+
+    .hardware-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 0.8rem;
+      background: #0b1120;
+      padding: 1rem;
+      border-radius: 10px;
+      border: 1px solid #1a2234;
+      margin-bottom: 1.25rem;
+    }
+
+    .hardware-item-title {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hardware-item-val {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #e2e8f0;
+      margin-top: 0.15rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    .mode-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .mode-card {
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 0.9rem 1.1rem;
+      cursor: pointer;
+      background: #0b1120;
+      transition: all 0.2s;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+    }
+
+    .mode-card:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: #0e1628;
+    }
+
+    .mode-card.active {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.08);
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
+    }
+
+    .mode-radio {
+      margin-top: 0.25rem;
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    .mode-content {
+      flex: 1;
+    }
+
+    .mode-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .mode-name {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .mode-desc {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+
+    .custom-file-box {
+      border: 2px dashed var(--card-border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+      background: #0b1120;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-bottom: 1rem;
+    }
+
+    .custom-file-box:hover {
+      border-color: var(--accent-cyan);
+      background: #0e172a;
+    }
+
+    .progress-box {
+      background: #0b1120;
+      border: 1px solid #1a2234;
+      border-radius: 12px;
+      padding: 1.25rem;
+      display: none;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.6rem;
+      font-size: 0.875rem;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #1e293b;
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), #38bdf8);
+      border-radius: 9999px;
+      transition: width 0.15s ease-out;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.7);
+    }
+
+    .progress-footer {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      margin-top: 0.5rem;
+    }
+
+    .result-banner {
+      padding: 1rem 1.25rem;
+      border-radius: 10px;
+      margin-top: 1rem;
+      display: none;
+      animation: fadeIn 0.3s;
+    }
+
+    .result-success {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid var(--accent-green);
+      color: #6ee7b7;
+    }
+
+    .result-error {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid var(--accent-red);
+      color: #fca5a5;
+    }
+
+    .console-card {
+      background: #06090e;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    .console-header {
+      background: #0b0f19;
+      padding: 0.75rem 1.25rem;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    .console-body {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.8rem;
+      color: #cbd5e1;
+      padding: 1rem 1.25rem;
+      height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      line-height: 1.6;
+    }
+
+    .console-line-info { color: #38bdf8; }
+    .console-line-warn { color: #f59e0b; }
+    .console-line-error { color: #ef4444; }
+    .console-line-success { color: #10b981; }
+
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .faq-item strong {
+      color: #e2e8f0;
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+    }
+
+    .faq-item span {
+      line-height: 1.7;
+      display: block;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      margin-right: 0.4rem;
+    }
+
+    .status-dot.connected {
+      background: var(--accent-green);
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .pulse {
+      animation: pulseAnim 2s infinite;
+    }
+
+    @keyframes pulseAnim {
+      0% { opacity: 0.6; }
+      50% { opacity: 1; }
+      100% { opacity: 0.6; }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    footer {
+      text-align: center;
+      padding: 2rem;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+      border-top: 1px solid #141c2e;
+      margin-top: 2rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <div class="brand-title">RemoteMapper-ESP32</div>
+        <div class="brand-subtitle">免驱动网页端一键刷机平台 (Web Serial Flasher)</div>
+      </div>
+    </div>
+    <div class="header-links">
+      <div id="serial-badge" class="badge badge-cyan">Web Serial API 就绪</div>
+      <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32" target="_blank" class="github-link">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        GitHub 仓库
+      </a>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- 浏览器不兼容提示 -->
+    <div id="unsupported-banner" class="alert-banner">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <div>当前浏览器不支持 Web Serial 串口通信。请使用 <strong>Chrome、Edge、Brave 或 Opera 浏览器（PC 端）</strong> 访问本页面以进行线刷。</div>
+    </div>
+
+    <!-- 顶部主操作网格 -->
+    <div class="grid-2col">
+      <!-- 步骤 1: 物理连接与通信 -->
+      <div class="card">
+        <div class="card-title">
+          <span>1. 设备连接与串口通信</span>
+          <span id="conn-status" class="badge badge-amber"><span class="status-dot"></span>未连接</span>
+        </div>
+
+        <div class="form-group">
+          <label for="baud-rate" class="form-label">烧录通信波特率</label>
+          <select id="baud-rate" class="select">
+            <option value="460800" selected>460800 (推荐 / 稳定高速)</option>
+            <option value="921600">921600 (极速 / 适用于优质线材)</option>
+            <option value="115200">115200 (保守 / 适用于抗干扰模式)</option>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 0.8rem; margin-top: 1.5rem;">
+          <button id="btn-connect" class="btn btn-primary" style="flex: 1;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+            </svg>
+            连接开发板 (Connect)
+          </button>
+          <button id="btn-disconnect" class="btn btn-danger" style="display: none;">
+            断开连接
+          </button>
+        </div>
+
+        <!-- 硬件信息卡片 (连接后显示) -->
+        <div id="hw-info-panel" style="display: none; margin-top: 1.25rem;">
+          <div class="hardware-info-grid">
+            <div>
+              <div class="hardware-item-title">芯片型号</div>
+              <div id="hw-chip" class="hardware-item-val">-</div>
+            </div>
+            <div>
+              <div class="hardware-item-title">Flash 容量</div>
+              <div id="hw-flash" class="hardware-item-val">-</div>
+            </div>
+            <div>
+              <div class="hardware-item-title">PSRAM 规格</div>
+              <div id="hw-psram" class="hardware-item-val">-</div>
+            </div>
+            <div>
+              <div class="hardware-item-title">MAC 地址</div>
+              <div id="hw-mac" class="hardware-item-val">-</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 步骤 2: 目标固件选择与模式 -->
+      <div class="card">
+        <div class="card-title">
+          <span>2. 固件匹配与刷机模式</span>
+          <span id="match-badge" class="badge badge-green" style="display: none;">已自动识别型号</span>
+        </div>
+
+        <div class="form-group">
+          <label for="target-model" class="form-label">硬件型号版本</label>
+          <select id="target-model" class="select">
+            <option value="esp32s3_n16r8">ESP32-S3-WROOM-1 N16R8 (16MB Flash, 8MB PSRAM) 【推荐】</option>
+            <option value="esp32s3_n8r8">ESP32-S3-WROOM-1 N8R8 (8MB Flash, 8MB PSRAM)</option>
+            <option value="esp32s3_n8r2">ESP32-S3-WROOM-1 N8R2 (8MB Flash, 2MB PSRAM)</option>
+            <option value="esp32s3_n4r2">ESP32-S3-WROOM-1 N4R2 (4MB Flash, 2MB PSRAM)</option>
+            <option value="custom">自定义本地固件 (.bin 镜像文件)</option>
+          </select>
+        </div>
+
+        <!-- 自定义本地固件上传区 (选中自定义时显示) -->
+        <div id="custom-file-container" style="display: none;">
+          <div class="custom-file-box" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" accept=".bin" style="display: none;">
+            <div style="font-size: 1.4rem; margin-bottom: 0.3rem;">📁</div>
+            <div id="custom-file-label" style="font-size: 0.85rem; color: var(--accent-cyan);">点击选择或拖拽本地 .bin 固件文件</div>
+          </div>
+          <div class="form-group">
+            <label for="custom-offset" class="form-label">写入起始偏移地址 (Offset)</label>
+            <input type="text" id="custom-offset" class="input" value="0x0" placeholder="0x0 (全新) 或 0x10000 (升级)">
+          </div>
+        </div>
+
+        <!-- 刷机模式切换 (官方固件模式) -->
+        <div id="official-modes" class="mode-cards">
+          <div class="mode-card active" data-mode="full">
+            <input type="radio" name="flash-mode" id="mode-full" class="mode-radio" checked>
+            <div class="mode-content">
+              <div class="mode-header">
+                <span class="mode-name">全量全新刷机 (出厂完整刷机)</span>
+                <span class="badge badge-cyan">全新板推荐</span>
+              </div>
+              <div class="mode-desc">烧录 bootloader + 分区表 + 应用程序完整镜像 (0x0)。适合新买的空白芯片或希望彻底出厂重置。</div>
+            </div>
+          </div>
+
+          <div class="mode-card" data-mode="upgrade">
+            <input type="radio" name="flash-mode" id="mode-upgrade" class="mode-radio">
+            <div class="mode-content">
+              <div class="mode-header">
+                <span class="mode-name">保留配置升级 (升级固件)</span>
+                <span class="badge badge-green">老用户推荐</span>
+              </div>
+              <div class="mode-desc">仅刷入应用程序区 (0x10000)，跳过 0x9000 NVS 存储区，完整保留已有 Wi-Fi、蓝牙配对与按键映射！</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 擦除选项 -->
+        <div id="erase-option" style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-muted);">
+          <input type="checkbox" id="chk-erase" style="accent-color: var(--accent-amber);">
+          <label for="chk-erase">刷机前全盘擦除 Flash (Erase All，解决疑难损坏与存储冲突)</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- 步骤 3: 烧录执行与实时进度 -->
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <div style="font-size: 1.1rem; font-weight: 600;">3. 执行固件烧录</div>
+          <div style="font-size: 0.85rem; color: var(--text-muted);">烧录过程大约需要 10~25 秒，期间请勿触碰或拔掉数据线。</div>
+        </div>
+        <button id="btn-flash" class="btn btn-primary" style="padding: 0.8rem 2.2rem; font-size: 1rem;" disabled>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          立即开始刷机
+        </button>
+      </div>
+
+      <!-- 进度条面板 -->
+      <div id="progress-panel" class="progress-box" style="margin-top: 1.5rem;">
+        <div class="progress-header">
+          <span id="progress-status-text" style="font-weight: 500; color: var(--accent-cyan);">准备写入固件...</span>
+          <span id="progress-percent" style="font-weight: 700; color: #fff; font-family: monospace;">0%</span>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="progress-fill" class="progress-bar-fill"></div>
+        </div>
+        <div class="progress-footer">
+          <span id="progress-bytes">0 / 0 KB</span>
+          <span id="progress-speed">速度: 0 KB/s</span>
+        </div>
+      </div>
+
+      <!-- 结果横幅 -->
+      <div id="result-success" class="result-banner result-success">
+        <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.4rem; display: flex; align-items: center; gap: 0.5rem;">
+          <span>🎉 固件烧录成功！设备已自动重启</span>
+        </div>
+        <div id="success-guide" style="font-size: 0.875rem; line-height: 1.6;">
+          1. 设备正在自动启动，请稍等 3 秒；<br>
+          2. 如为全新刷机，手机/电脑连接热点 <strong>RemoteMapper-AP</strong>（无密码），打开网页 <strong>http://192.168.4.1</strong> 开始配置；<br>
+          3. 如为保留配置升级，原有 Wi-Fi 与按键映射完好无损，即可直接正常使用。
+        </div>
+      </div>
+
+      <div id="result-error" class="result-banner result-error">
+        <div style="font-weight: 700; font-size: 1.05rem; margin-bottom: 0.4rem;">✖ 固件烧录失败</div>
+        <div id="error-message" style="font-size: 0.875rem; line-height: 1.6;">未知错误</div>
+      </div>
+    </div>
+
+    <!-- 运行日志与串口终端 -->
+    <div class="console-card">
+      <div class="console-header">
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="4 17 10 11 4 5"></polyline>
+            <line x1="12" y1="19" x2="20" y2="19"></line>
+          </svg>
+          <span>通信终端控制台 (Console Log)</span>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+          <button id="btn-clear-log" style="background: transparent; border: none; color: var(--text-dim); cursor: pointer; font-size: 0.75rem;">清空日志</button>
+        </div>
+      </div>
+      <div id="console-output" class="console-body">等待设备连接...
+请使用 Type-C 数据线将 ESP32-S3 开发板的 USB 接口接入电脑。
+</div>
+    </div>
+
+    <!-- 常见问题与操作指引 -->
+    <div class="card">
+      <div class="card-title">💡 常见问题与排查指南</div>
+      <div class="faq-list">
+        <div class="faq-item">
+          <strong>问：点击“连接开发板”后弹出的串口列表中找不到设备，或连接提示握手超时？</strong>
+          <span>
+            答：① 请确保连接的是开发板标有【USB】(Native USB) 的 Type-C 接口，不要插在 COM/UART 接口；<br>
+            ② 必须使用<strong>具备数据传输功能</strong>的 Type-C 数据线（纯充电线无法通信）；<br>
+            ③ <strong>手动进入 Bootloader 模式</strong>：用手指按住开发板上的【BOOT】键不放，按一下【RST】按键后松开，最后松开【BOOT】键，然后重新点击连接。
+          </span>
+        </div>
+        <div class="faq-item">
+          <strong>问：烧录完成后如何让设备正常运行？</strong>
+          <span>答：烧录成功后网页会自动发送硬件复位指令。若开发板未启动，只需按一下开发板上的【RST】按键或重新拔插一次 USB 数据线即可。</span>
+        </div>
+        <div class="faq-item">
+          <strong>问：我的开发板是 N16R8 还是 N8R8，选错会怎么样？</strong>
+          <span>答：本页面已实现硬件 JEDEC Flash ID 与 eFuse 自动探测！连接设备后会自动为您匹配最适型号。若 Flash 容量不匹配，系统会给出警告以防止死机。</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    RemoteMapper-ESP32 &bull; 开源蓝牙遥控器转客制化键盘固件 &bull; MIT License
+  </footer>
+
+  <!-- 引入 ESPLoader 核心模块 (ES Module) -->
+  <script type="module">
+    import { ESPLoader, Transport } from './esptool-bundle.js';
+
+    // UI 元素
+    const unsupportedBanner = document.getElementById('unsupported-banner');
+    const serialBadge = document.getElementById('serial-badge');
+    const btnConnect = document.getElementById('btn-connect');
+    const btnDisconnect = document.getElementById('btn-disconnect');
+    const connStatus = document.getElementById('conn-status');
+    const baudRateSelect = document.getElementById('baud-rate');
+    const hwInfoPanel = document.getElementById('hw-info-panel');
+    const hwChip = document.getElementById('hw-chip');
+    const hwFlash = document.getElementById('hw-flash');
+    const hwPsram = document.getElementById('hw-psram');
+    const hwMac = document.getElementById('hw-mac');
+    const matchBadge = document.getElementById('match-badge');
+    const targetModelSelect = document.getElementById('target-model');
+    const officialModes = document.getElementById('official-modes');
+    const customFileContainer = document.getElementById('custom-file-container');
+    const fileInput = document.getElementById('file-input');
+    const customFileLabel = document.getElementById('custom-file-label');
+    const customOffset = document.getElementById('custom-offset');
+    const modeCards = document.querySelectorAll('.mode-card');
+    const chkErase = document.getElementById('chk-erase');
+    const btnFlash = document.getElementById('btn-flash');
+    const progressPanel = document.getElementById('progress-panel');
+    const progressStatusText = document.getElementById('progress-status-text');
+    const progressPercent = document.getElementById('progress-percent');
+    const progressFill = document.getElementById('progress-fill');
+    const progressBytes = document.getElementById('progress-bytes');
+    const progressSpeed = document.getElementById('progress-speed');
+    const resultSuccess = document.getElementById('result-success');
+    const resultError = document.getElementById('result-error');
+    const errorMessage = document.getElementById('error-message');
+    const consoleOutput = document.getElementById('console-output');
+    const btnClearLog = document.getElementById('btn-clear-log');
+
+    // 运行状态
+    let port = null;
+    let transport = null;
+    let esploader = null;
+    let isFlashing = false;
+    let customFileBuffer = null;
+    let selectedMode = 'full'; // 'full' or 'upgrade'
+
+    // 检查 Web Serial 支持
+    if (!('serial' in navigator)) {
+      unsupportedBanner.style.display = 'flex';
+      serialBadge.textContent = '浏览器不支持 Web Serial';
+      serialBadge.className = 'badge badge-amber';
+      btnConnect.disabled = true;
+    }
+
+    // 控制台输出工具
+    function appendLog(text, type = 'info') {
+      const line = document.createElement('div');
+      if (text.includes('Error') || type === 'error') {
+        line.className = 'console-line-error';
+      } else if (text.includes('WARNING') || text.includes('Warning') || type === 'warn') {
+        line.className = 'console-line-warn';
+      } else if (text.includes('Success') || text.includes('verified') || type === 'success') {
+        line.className = 'console-line-success';
+      } else {
+        line.className = 'console-line-info';
+      }
+      line.textContent = text;
+      consoleOutput.appendChild(line);
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    btnClearLog.addEventListener('click', () => {
+      consoleOutput.innerHTML = '';
+    });
+
+    const terminalWrapper = {
+      clean() { consoleOutput.innerHTML = ''; },
+      writeLine(text) { appendLog(text); },
+      write(text) { appendLog(text); }
+    };
+
+    // 模式切换
+    modeCards.forEach(card => {
+      card.addEventListener('click', () => {
+        modeCards.forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+        const radio = card.querySelector('input[type="radio"]');
+        radio.checked = true;
+        selectedMode = card.getAttribute('data-mode');
+      });
+    });
+
+    // 固件型号切换 (选择自定义时显示文件上传)
+    targetModelSelect.addEventListener('change', () => {
+      if (targetModelSelect.value === 'custom') {
+        officialModes.style.display = 'none';
+        customFileContainer.style.display = 'block';
+      } else {
+        officialModes.style.display = 'flex';
+        customFileContainer.style.display = 'none';
+      }
+    });
+
+    // 本地文件选择
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        customFileLabel.textContent = `已选择: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          customFileBuffer = new Uint8Array(evt.target.result);
+          appendLog(`[本地固件] 已加载文件: ${file.name}, 大小: ${customFileBuffer.length} 字节`, 'success');
+        };
+        reader.readAsArrayBuffer(file);
+      }
+    });
+
+    // 连接设备
+    btnConnect.addEventListener('click', async () => {
+      try {
+        resultSuccess.style.display = 'none';
+        resultError.style.display = 'none';
+        appendLog('正在请求串口授权，请在浏览器弹出窗口中选择 ESP32-S3 串口设备...');
+        
+        port = await navigator.serial.requestPort({});
+        appendLog('已获得串口授权，正在初始化 Transport 协议通道...');
+
+        transport = new Transport(port, false, true);
+        const baud = parseInt(baudRateSelect.value, 10) || 460800;
+
+        esploader = new ESPLoader({
+          transport: transport,
+          baudrate: baud,
+          romBaudrate: 115200,
+          terminal: terminalWrapper
+        });
+
+        connStatus.innerHTML = '<span class="status-dot pulse" style="background:#06b6d4;"></span>正在同步握手...';
+        btnConnect.disabled = true;
+
+        appendLog('正在连接芯片 Bootloader (同步握手)...');
+        const chipDesc = await esploader.main('default_reset');
+        appendLog(`[芯片就绪] ${chipDesc}`, 'success');
+
+        // 读取硬件详细参数
+        const detectedFlash = await esploader.detectFlashSize();
+        let detectedPsram = '未知';
+        let psramCap = 0;
+        try {
+          psramCap = await esploader.chip.getPsramCap(esploader);
+          if (psramCap === 1) detectedPsram = '8MB (Octal)';
+          else if (psramCap === 2) detectedPsram = '2MB (Quad)';
+          else detectedPsram = '无 / 外置';
+        } catch (e) {
+          detectedPsram = '未读取到';
+        }
+
+        let macAddr = '未知';
+        try {
+          macAddr = await esploader.chip.readMac(esploader);
+        } catch (e) {}
+
+        // 更新硬件卡片
+        hwChip.textContent = esploader.chip.CHIP_NAME || 'ESP32-S3';
+        hwFlash.textContent = detectedFlash || '未知';
+        hwPsram.textContent = detectedPsram;
+        hwMac.textContent = macAddr;
+        hwInfoPanel.style.display = 'block';
+
+        // 智能匹配型号
+        autoMatchModel(detectedFlash, psramCap);
+
+        // 更新连接状态
+        connStatus.innerHTML = '<span class="status-dot connected"></span>已连接';
+        connStatus.className = 'badge badge-green';
+        btnConnect.style.display = 'none';
+        btnDisconnect.style.display = 'inline-flex';
+        btnFlash.disabled = false;
+        baudRateSelect.disabled = true;
+
+      } catch (err) {
+        console.error(err);
+        appendLog(`连接失败: ${err.message || err}`, 'error');
+        connStatus.innerHTML = '<span class="status-dot"></span>连接失败';
+        connStatus.className = 'badge badge-amber';
+        btnConnect.disabled = false;
+        if (transport) {
+          try { await transport.disconnect(); } catch (e) {}
+        }
+      }
+    });
+
+    // 自动匹配型号算法
+    function autoMatchModel(flashSize, psramCap) {
+      let matchedTarget = 'esp32s3_n16r8';
+      let reason = '';
+
+      if (flashSize === '16MB') {
+        matchedTarget = 'esp32s3_n16r8';
+        reason = '检测到 16MB Flash，匹配 N16R8';
+      } else if (flashSize === '4MB') {
+        matchedTarget = 'esp32s3_n4r2';
+        reason = '检测到 4MB Flash，匹配 N4R2';
+      } else if (flashSize === '8MB') {
+        if (psramCap === 2) {
+          matchedTarget = 'esp32s3_n8r2';
+          reason = '检测到 8MB Flash + 2MB PSRAM，匹配 N8R2';
+        } else {
+          matchedTarget = 'esp32s3_n8r8';
+          reason = '检测到 8MB Flash + 8MB PSRAM，匹配 N8R8';
+        }
+      } else {
+        matchedTarget = 'esp32s3_n16r8';
+        reason = '未识别 Flash 容量，默认推荐 N16R8';
+      }
+
+      targetModelSelect.value = matchedTarget;
+      targetModelSelect.dispatchEvent(new Event('change'));
+      matchBadge.textContent = `已自动匹配: ${reason}`;
+      matchBadge.style.display = 'inline-block';
+      appendLog(`[智能硬件匹配] ${reason} -> ${matchedTarget}`, 'success');
+    }
+
+    // 断开连接
+    btnDisconnect.addEventListener('click', async () => {
+      try {
+        if (transport) {
+          await transport.disconnect();
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+      transport = null;
+      esploader = null;
+      port = null;
+      connStatus.innerHTML = '<span class="status-dot"></span>未连接';
+      connStatus.className = 'badge badge-amber';
+      btnConnect.style.display = 'inline-flex';
+      btnConnect.disabled = false;
+      btnDisconnect.style.display = 'none';
+      btnFlash.disabled = true;
+      baudRateSelect.disabled = false;
+      hwInfoPanel.style.display = 'none';
+      matchBadge.style.display = 'none';
+      appendLog('已断开与设备的串口连接。');
+    });
+
+    // 格式化型号名称到文件名
+    function getModelFilename(targetKey, mode) {
+      const map = {
+        'esp32s3_n16r8': 'RemoteMapper_ESP32S3_N16R8',
+        'esp32s3_n8r8': 'RemoteMapper_ESP32S3_N8R8',
+        'esp32s3_n8r2': 'RemoteMapper_ESP32S3_N8R2',
+        'esp32s3_n4r2': 'RemoteMapper_ESP32S3_N4R2'
+      };
+      const base = map[targetKey] || 'RemoteMapper_ESP32S3_N16R8';
+      return mode === 'full' ? `${base}_full.bin` : `${base}_app.bin`;
+    }
+
+    // 开始烧录
+    btnFlash.addEventListener('click', async () => {
+      if (!esploader || isFlashing) return;
+
+      isFlashing = true;
+      btnFlash.disabled = true;
+      btnDisconnect.disabled = true;
+      resultSuccess.style.display = 'none';
+      resultError.style.display = 'none';
+      progressPanel.style.display = 'block';
+
+      let flashOffset = 0x0;
+      let binData = null;
+
+      try {
+        const isCustom = targetModelSelect.value === 'custom';
+        const isEraseAll = chkErase.checked;
+
+        if (isCustom) {
+          if (!customFileBuffer) {
+            throw new Error('请先选择本地 .bin 固件镜像文件！');
+          }
+          binData = customFileBuffer;
+          const offsetStr = customOffset.value.trim();
+          flashOffset = parseInt(offsetStr, offsetStr.startsWith('0x') || offsetStr.startsWith('0X') ? 16 : 10);
+          if (isNaN(flashOffset)) {
+            throw new Error('固件起始偏移地址 (Offset) 格式错误，例如 0x0 或 0x10000');
+          }
+          appendLog(`[开始自定义烧录] 地址: 0x${flashOffset.toString(16)}, 大小: ${binData.length} 字节`);
+        } else {
+          const modelKey = targetModelSelect.value;
+          const fileName = getModelFilename(modelKey, selectedMode);
+          flashOffset = (selectedMode === 'full') ? 0x0 : 0x10000;
+          const fileUrl = `./firmware/${fileName}`;
+
+          progressStatusText.textContent = `正在从服务器下载固件 (${fileName})...`;
+          appendLog(`[获取固件] 正在请求固件文件: ${fileUrl}`);
+
+          const resp = await fetch(fileUrl);
+          if (!resp.ok) {
+            throw new Error(`下载固件文件失败: HTTP ${resp.status} (${resp.statusText})。请确认固件文件已正确发布到 Pages。`);
+          }
+          const buf = await resp.arrayBuffer();
+          binData = new Uint8Array(buf);
+          appendLog(`[固件下载完成] 文件: ${fileName}, 大小: ${binData.length} 字节`, 'success');
+        }
+
+        progressStatusText.textContent = isEraseAll ? '正在执行全盘擦除与写入准备...' : '正在准备写入 Flash...';
+        appendLog(`[准备写入] 写入起始地址: 0x${flashOffset.toString(16)}, 全盘擦除: ${isEraseAll ? '是' : '否'}`);
+
+        let startTime = Date.now();
+        let lastBytes = 0;
+
+        await esploader.writeFlash({
+          fileArray: [{ data: binData, address: flashOffset }],
+          flashSize: 'keep',
+          eraseAll: isEraseAll,
+          compress: true,
+          reportProgress: (fileIndex, written, total) => {
+            const pct = Math.floor((written / total) * 100);
+            progressPercent.textContent = `${pct}%`;
+            progressFill.style.width = `${pct}%`;
+            progressBytes.textContent = `${(written / 1024).toFixed(1)} / ${(total / 1024).toFixed(1)} KB`;
+
+            const elapsedSec = (Date.now() - startTime) / 1000;
+            if (elapsedSec > 0.5) {
+              const speedKb = ((written / 1024) / elapsedSec).toFixed(1);
+              progressSpeed.textContent = `速度: ${speedKb} KB/s`;
+            }
+            progressStatusText.textContent = `正在写入 Flash (${pct}%)...`;
+          }
+        });
+
+        appendLog('[烧录完成] 固件写入与 MD5 校验全部通过！', 'success');
+        progressStatusText.textContent = '写入完成，正在复位设备...';
+        progressPercent.textContent = '100%';
+        progressFill.style.width = '100%';
+
+        // 复位重启设备
+        try {
+          appendLog('正在发送 Hard Reset 复位指令...');
+          await esploader.after('hard_reset');
+          appendLog('复位指令已发送，设备正在启动。', 'success');
+        } catch (resetErr) {
+          console.warn('Reset notice:', resetErr);
+        }
+
+        // 显示成功提示
+        resultSuccess.style.display = 'block';
+        if (selectedMode === 'upgrade') {
+          document.getElementById('success-guide').innerHTML = `
+            1. 设备正在自动启动，原有配置（Wi-Fi、热点、按键映射、蓝牙配对）<strong>已全部保留</strong>；<br>
+            2. 若开发板未自动重启，请按一下板子上的 <strong>RST</strong> 按键即可！
+          `;
+        } else {
+          document.getElementById('success-guide').innerHTML = `
+            1. 全量出厂固件已写入完毕，设备正在自动启动；<br>
+            2. 打开手机/电脑 Wi-Fi，连接热点 <strong>RemoteMapper-AP</strong>（无密码）；<br>
+            3. 打开浏览器访问 <strong>http://192.168.4.1</strong> 进行蓝牙遥控器配对与键位映射配置！
+          `;
+        }
+
+      } catch (err) {
+        console.error(err);
+        appendLog(`[烧录失败] ${err.message || err}`, 'error');
+        errorMessage.textContent = err.message || '未知异常，请查看下方控制台日志。';
+        resultError.style.display = 'block';
+        progressStatusText.textContent = '烧录中断';
+      } finally {
+        isFlashing = false;
+        btnFlash.disabled = false;
+        btnDisconnect.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

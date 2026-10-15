@@ -131,6 +131,22 @@
 
 无需安装 Python、PlatformIO、Git 或任何开发编译环境，开箱即用：
 
+### 方式一：网页端一键免驱动刷机（零安装，最推荐 ⭐⭐⭐⭐⭐）
+
+直接使用电脑浏览器即可完成固件写入，无需下载任何解压包：
+
+> 🌐 **在线刷机入口**：[https://cuicui-v5.github.io/RemoteMapper-ESP32/](https://cuicui-v5.github.io/RemoteMapper-ESP32/) （备用地址：[http://cuijunyu.win/RemoteMapper-ESP32/](http://cuijunyu.win/RemoteMapper-ESP32/)）
+
+1. 使用 **Chrome、Edge、Brave 或 Opera 浏览器**（PC 端）打开上述刷机网页；
+2. 用 Type-C 数据线连接 ESP32-S3 开发板的 **USB / OTG** 接口；
+3. 点击网页上的 **「连接开发板 (Connect)」** 并选择对应的串口设备；
+4. 页面将**全自动读取芯片 Flash 容量与 PSRAM 规格，并自动匹配对应固件**；
+5. 选择「全新刷机」或「保留配置升级」，点击 **「立即开始刷机」** 即可在 15 秒内完成烧录与自动复位。
+
+---
+
+### 方式二：本地绿色免环境刷机包（离线离线备选）
+
 1. **获取免环境刷机包**：
    前往本仓库的 [Releases 页面](https://github.com/cuicui-V5/RemoteMapper-ESP32/releases)（或直接点击 [最新一键刷机包下载](https://github.com/cuicui-V5/RemoteMapper-ESP32/releases/tag/release)），在 Assets 附件中下载 `RemoteMapper-Flasher.7z`（或 `.zip`）并解压。
    > ⚠️ **重要提示**：Git 源码仓库（包括点击 Code -> Download ZIP）仅用于存放源代码，**不包含**预编译固件二进制。普通用户请务必前往 Releases 页面下载独立绿色刷机包，切勿直接下载源码包进行刷机。
