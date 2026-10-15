@@ -103,9 +103,9 @@ const TRANSLATIONS = {
     'tut.s3_desc': '在手机或电脑浏览器中打开管理后台地址。整个配置流程纯网页端操作，无需下载任何 App 或驱动。',
     'tut.s3_note': '可在后台「网络设置」中将设备连入家庭 Wi-Fi 局域网',
     'tut.s4_title': '蓝牙遥控器一键配对',
-    'tut.s4_desc': '同时按住小米蓝牙遥控器 2 Pro 上的 <strong>【主页键】+【菜单键】</strong>（长按约 3 秒直至听到滴声），在网页后台点击「开始配对」，ESP32 将自动搜索并绑定遥控器 MAC 地址。',
+    'tut.s4_desc': '拿起小米遥控器 2 Pro，同时按住 <strong>【主页键】+【菜单键】</strong> 持续约 3~5 秒（注意：该遥控器广播时<strong>无任何声光提示或指示灯反馈</strong>，属于正常物理特性），随后在网页后台点击「开始配对」搜索绑定。',
     'tut.s5_title': '配置按键映射与语音输入联动',
-    'tut.s5_desc': '在后台「按键映射」页面，为单击、长按、双击分配键盘按键、快捷键组合、Consumer 媒体控制（音量/播放）或 WOL 网络开机。配置保存后立即生效并永久写入 NVS 分区。',
+    'tut.s5_desc': '① 打开 Windows 声音设置确认输入设备列表中已出现 <code>RemoteMapper Mic</code>（<strong>无需</strong>设为系统默认设备）；② 在微信输入法或讯飞输入法设置中，将语音麦克风单独指定为 <code>RemoteMapper Mic</code>；③ 将输入法语音热键与网页控制台保持一致（出厂默认预设为 <code>右Alt + 逗号</code>）。按住遥控器语音键说话即可体验零延迟转文字！',
 
     // FAQ
     'faq.tag': 'FAQ',
@@ -265,9 +265,9 @@ const TRANSLATIONS = {
     'tut.s3_desc': 'Navigate to the management address in any browser. Pure web configuration without any apps or drivers.',
     'tut.s3_note': 'You can connect the device to your home Wi-Fi in Network Settings',
     'tut.s4_title': 'One-Click Remote Pairing',
-    'tut.s4_desc': 'Hold <strong>[Home] + [Menu]</strong> on Xiaomi Remote 2 Pro for ~3s until a beep sounds, then click "Start Pairing" on the web page to bind.',
-    'tut.s5_title': 'Configure Keymaps & Voice Hotkey',
-    'tut.s5_desc': 'Assign keyboard keys, combos, multimedia controls, or WOL power-on to click, hold, or double-click in Keymap Settings. Persisted permanently in NVS.',
+    'tut.s4_desc': 'Hold <strong>[Home] + [Menu]</strong> on Xiaomi Remote 2 Pro for ~3-5 seconds (Note: the remote has <strong>no sound or LED feedback</strong> when broadcasting, which is normal). Then click "Start Pairing" on the web page to bind.',
+    'tut.s5_title': 'Configure Keymaps & Voice Dictation',
+    'tut.s5_desc': '① In Windows Sound settings, verify <code>RemoteMapper Mic</code> is recognized (<strong>no need</strong> to set as system default); ② In your IME (e.g. WeChat / iFlytek IME), independently assign its dictation microphone to <code>RemoteMapper Mic</code>; ③ Match the dictation hotkey with the web console (factory default: <code>RAlt + ,</code>). Press the voice key to dictate with zero latency!',
 
     // FAQ
     'faq.tag': 'FAQ',
