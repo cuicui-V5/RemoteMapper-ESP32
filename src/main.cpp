@@ -34,7 +34,7 @@ static void ble_task_core0(void* param) {
 void setup() {
     // 0. Initialize Flash NVS with auto-recovery for corrupted partitions
     esp_err_t nvs_err = nvs_flash_init();
-    if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    if (nvs_err != ESP_OK) {
         nvs_flash_erase();
         nvs_flash_init();
     }

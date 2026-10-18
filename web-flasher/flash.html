@@ -1019,10 +1019,10 @@
         detectDesc.innerHTML = isEn
           ? 'Existing RemoteMapper signature was detected on this chip. <strong>"Keep Config & Upgrade"</strong> has been automatically selected.<br>' +
             'Your <strong>Wi-Fi, hotspot, remote pairings, and keymaps will be completely preserved</strong>!' +
-            '<div style="margin-top:0.35rem; font-size:0.75rem; color:#6ee7b7;">(You can still manually switch to "Full Clean Flash" below to factory reset)</div>'
+            '<div style="margin-top:0.35rem; font-size:0.75rem; color:#6ee7b7;">(💡 Routine update keeps configs. If your device was unbootable or in an abnormal loop, select "Full Clean Flash" below to completely factory reset)</div>'
           : '系统探测到芯片中已存在 RemoteMapper 固件特征，已为您<strong>自动选择【保留配置升级】</strong>。<br>' +
             '本次刷机将<strong>完整保留 Wi-Fi、热点、按键映射与遥控器配对</strong>，无需重新配置！' +
-            '<div style="margin-top:0.35rem; font-size:0.75rem; color:#6ee7b7;">（如需完全清空数据并恢复出厂状态，也可随时手动点击下方「全量全新刷机」）</div>';
+            '<div style="margin-top:0.35rem; font-size:0.75rem; color:#6ee7b7;">（💡 日常升级建议保留配置；若设备此前遇到死循环、无法启动等异常，请手动点击下方「全量全新刷机」以彻底重置底层和 NVS 存储区）</div>';
         badgeModeUpgrade.className = 'badge badge-green';
         badgeModeUpgrade.textContent = isEn ? '✨ Auto Selected' : '✨ 智能检测推荐 / 已选择';
         badgeModeFull.className = 'badge badge-cyan';
@@ -1406,6 +1406,23 @@
           await esploader.after('hard_reset');
         } catch (resetErr) {
           console.warn('Reset notice:', resetErr);
+        }
+
+        // 烧录完成后主动释放网页串口占用，避免浏览器后台锁死 USB CDC 阻碍设备正常枚举
+        try {
+          if (transport) {
+            await transport.disconnect();
+            transport = null;
+            esploader = null;
+            btnConnect.style.display = 'inline-flex';
+            btnConnect.disabled = false;
+            btnDisconnect.style.display = 'none';
+            btnFlash.disabled = true;
+            baudRateSelect.disabled = false;
+            appendLog('已安全释放串口，避免占用 USB 总线。');
+          }
+        } catch (discErr) {
+          console.warn('Disconnect notice:', discErr);
         }
 
         // 显示成功提示
