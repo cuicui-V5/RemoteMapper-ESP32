@@ -1287,6 +1287,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         if (b.has_click && b.click_type === 4) b.click_type = 5;
                         if (b.has_long && b.long_type === 4) b.long_type = 5;
                         if (b.has_double && b.double_type === 4) b.double_type = 5;
+                        if (b.click_mod === undefined) b.click_mod = 0;
+                        if (b.click_key === undefined) b.click_key = 0;
+                        if (b.click_cons === undefined) b.click_cons = 0;
+                        if (b.long_mod === undefined) b.long_mod = 0;
+                        if (b.long_key === undefined) b.long_key = 0;
+                        if (b.long_cons === undefined) b.long_cons = 0;
+                        if (b.double_mod === undefined) b.double_mod = 0;
+                        if (b.double_key === undefined) b.double_key = 0;
+                        if (b.double_cons === undefined) b.double_cons = 0;
                     });
                 }
             });
@@ -2010,7 +2019,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
-        function setVoiceTriggerMode(type) {
+        function setVoiceTriggerMode(type, skipRender = false) {
             currentSelectedMode = (type === 15) ? 15 : 7;
             const btnHold = document.getElementById('voice-btn-hold');
             const btnToggle = document.getElementById('voice-btn-toggle');
@@ -2042,9 +2051,11 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (editingBinding) {
                 editingBinding.click_type = currentSelectedMode;
             }
-            const mod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
-            const code = parseHexOrDec(document.getElementById('adv-code').value) || 0;
-            renderTriggerView(currentSelectedMode, mod, code, 0);
+            if (!skipRender) {
+                const mod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
+                const code = parseHexOrDec(document.getElementById('adv-code').value) || 0;
+                renderTriggerView(currentSelectedMode, mod, code, 0);
+            }
         }
 
         function switchAdvSubTab(sub) {
@@ -2372,9 +2383,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('double-click-header').style.display = 'none';
                 currentTriggerTab = 'click';
                 const vMode = (editingBinding.click_type === 15) ? 15 : 7;
-                setVoiceTriggerMode(vMode);
-                const vMod = (editingBinding.click_mod !== undefined) ? editingBinding.click_mod : 64;
-                const vKey = (editingBinding.click_key !== undefined) ? editingBinding.click_key : 54;
+                setVoiceTriggerMode(vMode, true);
+                let vMod = (editingBinding.click_mod !== undefined) ? editingBinding.click_mod : 0;
+                let vKey = (editingBinding.click_key !== undefined) ? editingBinding.click_key : 0;
+                if (editingBinding.click_mod === undefined && editingBinding.click_key === undefined) {
+                    vMod = 64;
+                    vKey = 54;
+                }
                 renderTriggerView(vMode, vMod, vKey, 0);
             } else {
                 document.getElementById('trigger-tab-bar').style.display = 'flex';

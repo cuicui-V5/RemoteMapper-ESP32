@@ -43,9 +43,9 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
             if (b->has_click) {
                 obj["has_click"] = true;
                 obj["click_type"] = (int)b->click_action.type;
-                if (b->click_action.modifier != 0) obj["click_mod"] = b->click_action.modifier;
-                if (b->click_action.key_code != 0) obj["click_key"] = b->click_action.key_code;
-                if (b->click_action.consumer_code != 0) obj["click_cons"] = b->click_action.consumer_code;
+                obj["click_mod"] = b->click_action.modifier;
+                obj["click_key"] = b->click_action.key_code;
+                obj["click_cons"] = b->click_action.consumer_code;
                 if (b->click_action.type == ACTION_SWITCH_LAYER) obj["click_layer"] = b->click_action.target_layer;
                 if (b->click_action.type == ACTION_WOL) {
                     char mac_buf[20];
@@ -59,9 +59,9 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                 obj["has_long"] = true;
                 obj["long_ms"] = b->long_ms;
                 obj["long_type"] = (int)b->long_action.type;
-                if (b->long_action.modifier != 0) obj["long_mod"] = b->long_action.modifier;
-                if (b->long_action.key_code != 0) obj["long_key"] = b->long_action.key_code;
-                if (b->long_action.consumer_code != 0) obj["long_cons"] = b->long_action.consumer_code;
+                obj["long_mod"] = b->long_action.modifier;
+                obj["long_key"] = b->long_action.key_code;
+                obj["long_cons"] = b->long_action.consumer_code;
                 if (b->long_action.type == ACTION_SWITCH_LAYER) obj["long_layer"] = b->long_action.target_layer;
                 if (b->long_action.type == ACTION_WOL) {
                     char mac_buf[20];
@@ -75,9 +75,9 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                 obj["has_double"] = true;
                 obj["double_ms"] = b->double_ms;
                 obj["double_type"] = (int)b->double_action.type;
-                if (b->double_action.modifier != 0) obj["double_mod"] = b->double_action.modifier;
-                if (b->double_action.key_code != 0) obj["double_key"] = b->double_action.key_code;
-                if (b->double_action.consumer_code != 0) obj["double_cons"] = b->double_action.consumer_code;
+                obj["double_mod"] = b->double_action.modifier;
+                obj["double_key"] = b->double_action.key_code;
+                obj["double_cons"] = b->double_action.consumer_code;
                 if (b->double_action.type == ACTION_SWITCH_LAYER) obj["double_layer"] = b->double_action.target_layer;
                 if (b->double_action.type == ACTION_WOL) {
                     char mac_buf[20];
