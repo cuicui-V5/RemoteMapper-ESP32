@@ -1019,10 +1019,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <option value="m:0x0F:0x00">Ctrl + Alt + Shift + Win（Hyper Key 全修饰键）</option>
                         </optgroup>
                         <optgroup label="【单修饰键】（独立按键）">
-                            <option value="m:0x08:0x00">Win 键（开始菜单）</option>
-                            <option value="m:0x01:0x00">Ctrl 键</option>
-                            <option value="m:0x04:0x00">Alt 键</option>
-                            <option value="m:0x02:0x00">Shift 键</option>
+                            <option value="m:0x08:0x00">左 Win 键（开始菜单）</option>
+                            <option value="m:0x01:0x00">左 Ctrl 键</option>
+                            <option value="m:0x04:0x00">左 Alt 键</option>
+                            <option value="m:0x02:0x00">左 Shift 键</option>
+                            <option value="m:0x80:0x00">右 Win 键 (RWin)</option>
+                            <option value="m:0x10:0x00">右 Ctrl 键 (RCtrl)</option>
+                            <option value="m:0x40:0x00">右 Alt 键 (RAlt / 微信按住说话)</option>
+                            <option value="m:0x20:0x00">右 Shift 键 (RShift)</option>
                         </optgroup>
                         <optgroup label="【Win 常用系统组合键】（网页无法直接录制）">
                             <option value="k:0x08:0x07">Win + D（显示 / 最小化桌面）</option>
@@ -1059,6 +1063,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <option value="k:0x04:0x2C">Alt + Space（窗口控制菜单 / 搜索）</option>
                             <option value="k:0x04:0x28">Alt + Enter（属性 / 播放器全屏）</option>
                             <option value="k:0x04:0x36">Alt + ,（逗号，微信语音输入等热键）</option>
+                            <option value="k:0x40:0x36">Right Alt + ,（逗号，微信语音出厂默认）</option>
                             <option value="k:0x01:0x06">Ctrl + C（复制）</option>
                             <option value="k:0x01:0x19">Ctrl + V（粘贴）</option>
                             <option value="k:0x01:0x1B">Ctrl + X（剪切）</option>
@@ -1148,7 +1153,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 <!-- Numerical Inputs -->
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                     <div>
-                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">修饰键（0x01=Ctrl, 0x02=Shift, 0x04=Alt, 0x08=Win，可累加如 0x03=Ctrl+Shift）</label>
+                        <label style="display:block; font-size:12px; color:var(--text-muted); margin-bottom:4px;">修饰键（左侧: 0x01=Ctrl, 0x02=Shift, 0x04=Alt, 0x08=Win；右侧: 0x10=RCtrl, 0x20=RShift, 0x40=RAlt, 0x80=RWin）</label>
                         <input type="text" id="adv-mod" value="0x00" oninput="onAdvInputChanged()" placeholder="0x00" style="width:100%; padding:8px 10px; background:#151d2a; border:1px solid #243247; color:#fff; border-radius:8px; font-size:13px; outline:none; font-family:monospace;">
                     </div>
                     <div>
