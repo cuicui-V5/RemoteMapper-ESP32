@@ -1355,12 +1355,12 @@
           const modelKey = targetModelSelect.value;
           const fileName = getModelFilename(modelKey, selectedMode);
           flashOffset = (selectedMode === 'full') ? 0x0 : 0x10000;
-          const fileUrl = `./firmware/${fileName}`;
+          const fileUrl = `./firmware/${fileName}?v=${Date.now()}`;
 
           progressStatusText.textContent = `正在从服务器下载固件 (${fileName})...`;
-          appendLog(`[获取固件] 正在请求固件文件: ${fileUrl}`);
+          appendLog(`[获取固件] 正在请求最新固件: ${fileName}`);
 
-          const resp = await fetch(fileUrl);
+          const resp = await fetch(fileUrl, { cache: 'no-cache' });
           if (!resp.ok) {
             throw new Error(`下载固件文件失败: HTTP ${resp.status} (${resp.statusText})。请确认固件文件已正确发布到 Pages。`);
           }

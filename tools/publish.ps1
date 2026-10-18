@@ -1,5 +1,6 @@
-﻿param(
-    [string]$TagName = "release"
+param(
+    [string]$TagName = "release",
+    [switch]$SkipBuild
 )
 
 # Set UTF-8 encoding
@@ -51,14 +52,16 @@ if (-not $sevenZip) {
     exit 1
 }
 
-# 3. 检查固件是否存在
-if ((-not (Test-Path -LiteralPath $binCheckFull)) -or (-not (Test-Path -LiteralPath $binCheckBoot))) {
-    Write-Host "[WARNING] 未检测到预编译完整或分段固件！正在自动调用 build.bat 进行全目标编译..." -ForegroundColor Yellow
+# 3. 编译并打包最新固件
+if (-not $SkipBuild) {
+    Write-Host "[BUILD] 正在自动调用 build.bat 进行全目标最新固件编译与打包..." -ForegroundColor Cyan
     & "$rootDir\build.bat" all
     if ($LASTEXITCODE -ne 0) {
         Write-Host "[ERROR] 固件编译失败，已终止发布流程！" -ForegroundColor Red
         exit 1
     }
+} else {
+    Write-Host "[BUILD] 跳过固件编译（使用现有本地 bin 固件）" -ForegroundColor Yellow
 }
 
 Write-Host "目标 Release 标签: [$TagName]" -ForegroundColor Magenta
