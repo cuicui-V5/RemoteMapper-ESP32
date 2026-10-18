@@ -1019,13 +1019,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                             <option value="m:0x0F:0x00">Ctrl + Alt + Shift + Win（Hyper Key 全修饰键）</option>
                         </optgroup>
                         <optgroup label="【单修饰键】（独立按键）">
-                            <option value="m:0x08:0x00">左 Win 键（开始菜单）</option>
-                            <option value="m:0x01:0x00">左 Ctrl 键</option>
-                            <option value="m:0x04:0x00">左 Alt 键</option>
-                            <option value="m:0x02:0x00">左 Shift 键</option>
+                            <option value="m:0x08:0x00">左 Win 键 (开始菜单)</option>
                             <option value="m:0x80:0x00">右 Win 键 (RWin)</option>
-                            <option value="m:0x10:0x00">右 Ctrl 键 (RCtrl)</option>
+                            <option value="m:0x04:0x00">左 Alt 键</option>
                             <option value="m:0x40:0x00">右 Alt 键 (RAlt / 微信按住说话)</option>
+                            <option value="m:0x01:0x00">左 Ctrl 键</option>
+                            <option value="m:0x10:0x00">右 Ctrl 键 (RCtrl)</option>
+                            <option value="m:0x02:0x00">左 Shift 键</option>
                             <option value="m:0x20:0x00">右 Shift 键 (RShift)</option>
                         </optgroup>
                         <optgroup label="【Win 常用系统组合键】（网页无法直接录制）">
