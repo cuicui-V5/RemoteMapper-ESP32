@@ -119,7 +119,10 @@ const TRANSLATIONS = {
     'faq.q4': '问：升级固件后之前的配置和按键映射会丢失吗？',
     'faq.a4': '答：在网页刷机平台选择<strong>「保留配置升级」</strong>模式即可！该模式只会写入位于 0x10000 的固件应用程序区，完全避开 0x9000 的 NVS 存储区，您的 Wi-Fi 配置、热点密码、按键映射以及遥控器配对记录会完好无损地保留。',
 
+    'tut.btn_full': '查看完整保姆级图文实战教程 (TUTORIAL.md)',
+
     // 页脚
+    'footer.tutorial': '新手实战教程',
     'footer.gh': 'GitHub 仓库',
     'footer.rel': 'Releases 固件发布',
     'footer.issues': '提交 Issue 反馈',
@@ -129,6 +132,7 @@ const TRANSLATIONS = {
     // 刷机平台专用 (flash.html)
     'flash.brand_subtitle': '免驱动网页端一键刷机平台 (Web Serial Flasher)',
     'flash.nav_home': '🏠 返回项目官网',
+    'flash.nav_tutorial': '📖 实战教程',
     'flash.serial_ready': 'Web Serial API 就绪',
     'flash.unsupported': '当前浏览器不支持 Web Serial 串口通信。请使用 <strong>Chrome、Edge、Brave 或 Opera 浏览器（PC 端）</strong> 访问本页面以进行线刷。',
     'flash.step1_title': '1. 设备连接与串口通信',
@@ -281,7 +285,10 @@ const TRANSLATIONS = {
     'faq.q4': 'Q: Will my settings and keymaps be lost after updating firmware?',
     'faq.a4': 'A: Simply select <strong>"Keep Config & Upgrade"</strong> mode! It only writes to the application region at 0x10000, completely preserving 0x9000 NVS where your Wi-Fi, passwords, remote pairing, and keymaps are saved.',
 
+    'tut.btn_full': 'Read Full Comprehensive Guide (TUTORIAL.md)',
+
     // Footer
+    'footer.tutorial': 'Full Tutorial',
     'footer.gh': 'GitHub Repository',
     'footer.rel': 'Releases',
     'footer.issues': 'Issues & Feedback',
@@ -291,6 +298,7 @@ const TRANSLATIONS = {
     // Flasher Platform Specific (flash.html)
     'flash.brand_subtitle': 'Driverless Web Serial Flasher Tool',
     'flash.nav_home': '🏠 Back to Official Site',
+    'flash.nav_tutorial': '📖 Tutorial',
     'flash.serial_ready': 'Web Serial API Ready',
     'flash.unsupported': 'Web Serial is not supported in this browser. Please use <strong>Chrome, Edge, Brave or Opera on desktop</strong> to flash firmware.',
     'flash.step1_title': '1. Device Connection & Serial Port',

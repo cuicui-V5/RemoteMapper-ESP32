@@ -15,11 +15,17 @@
 <p>
   <a href="https://cuicui-v5.github.io/RemoteMapper-ESP32/"><strong>🌐 官方网站</strong></a> •
   <a href="https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html"><strong>⚡ 网页在线刷机</strong></a> •
+  <a href="./TUTORIAL.md"><strong>📚 详细图文实战教程 (新手必读)</strong></a> •
   <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/releases"><strong>📦 离线固件下载</strong></a> •
   <a href="./DEVELOPMENT.md"><strong>📖 完整技术全景文档</strong></a>
 </p>
 
 </div>
+
+---
+
+> [!TIP]
+> 🚀 **新手初次上手？** 请直接阅读超详细的 **[《RemoteMapper-ESP32 完整新手图文实战教程》(TUTORIAL.md)](./TUTORIAL.md)**，涵盖从硬件选购避坑、网页一键免驱刷机、遥控器无感配对、Wi-Fi 域名访问、13 按键与多图层宏绑定，到 PC 伴侣守护程序与 AutoHotkey 复杂自动化的全流程保姆级指导！
 
 ---
 
