@@ -3,6 +3,7 @@ import asyncio
 import json
 import os
 import secrets
+import sys
 from pathlib import Path
 from uuid import uuid4
 
@@ -106,6 +107,13 @@ async def main():
                 raise RuntimeError("Android 工具服务启动失败")
             await asyncio.sleep(0.05)
         try:
+            directory = Path(__file__).parent
+            for command in (
+                [sys.executable, str(directory / "check_service.py"), "--state-dir", str(args.state_dir)],
+                [sys.executable, str(directory / "check_reliability.py"), "--state-dir", str(args.state_dir), "--adb", adbutils.adb_path(), "--serial", args.serial, "--output", str(args.state_dir / "reliability.json")],
+            ):
+                process = await asyncio.create_subprocess_exec(*command)
+                assert await process.wait() == 0, command
             await check(args)
         finally:
             server.should_exit = True

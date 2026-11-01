@@ -51,7 +51,8 @@ def main():
         connected = request("POST", "/v1/connect", {"serial": args.serial})
         assert connected["generation"] != observed["generation"]
         final = request("GET", "/v1/observe")
-        assert final["total_nodes"] > 0
+        assert final["app"]["package"] != "com.android.settings"
+        assert final["nodes"] == []
         print(json.dumps({"duplicate_request": "passed", "conflicting_id": "passed", "cancel": "passed", "real_adb_reconnect": "passed", "app": final["app"]}, ensure_ascii=False, indent=2))
 
 
