@@ -68,6 +68,26 @@ async def check(args):
         assert before["nodes"] == []
         await phone.execute(decision("app_start", package="com.android.settings"), before, ["com.android.settings"])
         adb_device = adbutils.adb.device(serial=args.serial)
+        name_before = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
+        assert name_before.returncode == 0
+        opened = await asyncio.to_thread(adb_device.shell2, ["am", "start", "-W", "-a", "android.settings.DEVICE_INFO_SETTINGS"], timeout=10)
+        assert opened.returncode == 0, opened.output
+        assert await asyncio.to_thread(device(text="Device name").wait, timeout=10)
+        before = await phone.observe()
+        target = [node for node in before["nodes"] if node["text"] == "Device name" and node["resource_id"] == "android:id/title"]
+        assert len(target) == 1, before
+        await phone.execute(decision("click", node_id=target[0]["id"]), before, ["com.android.settings"])
+        assert await asyncio.to_thread(device(className="android.widget.EditText").wait, timeout=10)
+        for value in ("RemoteMapper emulator", "", "RemoteMapper input check"):
+            before = await phone.observe()
+            editors = [node for node in before["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"]]
+            assert len(editors) == 1, before
+            result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
+            assert result["text_verified"], result
+        before = await phone.observe()
+        await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
+        name_after = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
+        assert name_after.returncode == 0 and name_after.output == name_before.output
         power = await asyncio.to_thread(adb_device.shell2, ["dumpsys", "display"], timeout=5)
         assert power.returncode == 0
         assert "mState=OFF" in power.output and "mCommittedState=OFF" in power.output
@@ -79,7 +99,7 @@ async def check(args):
         assert locked.status_code == 423, locked.text
         reconnect = await phone.client.post("/v1/connect", json={"serial": args.serial, "allowed_packages": ["com.android.settings"], "screen_off": True})
         assert reconnect.status_code == 423, reconnect.text
-        print(json.dumps({"same_resource_id_selection": "passed", "scroll": "passed", "package_filter": "passed", "unauthorized_app": "rejected", "launcher_content": "empty", "screen_off_operations": "passed", "quiet_keys": "rejected", "locked_observation": "rejected", "locked_connection": "rejected"}, ensure_ascii=False), flush=True)
+        print(json.dumps({"same_resource_id_selection": "passed", "scroll": "passed", "replace_and_clear_text": "passed", "package_filter": "passed", "unauthorized_app": "rejected", "launcher_content": "empty", "screen_off_operations": "passed", "quiet_keys": "rejected", "locked_observation": "rejected", "locked_connection": "rejected"}, ensure_ascii=False), flush=True)
     finally:
         try:
             await phone.request("POST", "/v1/disconnect", {})

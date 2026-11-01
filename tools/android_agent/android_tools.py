@@ -289,10 +289,15 @@ class AndroidTools:
             raise HTTPException(409, "控件需要属于当前前台应用")
         if node["password"] or not node["enabled"] or not node["resource_id"]:
             raise HTTPException(409, "需要有 resourceId 的已启用普通控件")
-        selector = {"resourceId": node["resource_id"], "className": node["class_name"], "packageName": node["package"], "text": node["text"], "description": node["description"]}
+        selector = {"resourceId": node["resource_id"], "className": node["class_name"], "packageName": node["package"]}
+        if node["text"]:
+            selector["text"] = node["text"]
+        if node["description"]:
+            selector["description"] = node["description"]
         obj = self.device(**selector)
-        if obj.count != 1:
-            raise HTTPException(409, "控件属性组合不能唯一定位")
+        count = obj.count
+        if count != 1:
+            raise HTTPException(409, f"控件属性组合匹配了 {count} 个控件，需要恰好一个")
         return obj
 
     def execute(self, action):
@@ -359,7 +364,11 @@ class AndroidTools:
                         raise RuntimeError("ADB 点击执行失败")
                 elif action.operation == "set_text":
                     obj.set_text(action.text, timeout=2)
-                    if obj.get_text(timeout=2) != action.text:
+                    if action.text:
+                        obj.selector["text"] = action.text
+                    elif "text" in obj.selector:
+                        del obj.selector["text"]
+                    if obj.count != 1 or obj.get_text(timeout=2) != action.text:
                         raise RuntimeError("输入文字与读取结果不一致")
                     details["text_verified"] = True
                 elif action.operation == "scroll":
