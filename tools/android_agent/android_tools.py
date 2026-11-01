@@ -246,6 +246,7 @@ class AndroidTools:
                 "class_name": attrs.get("class", ""),
                 "package": attrs.get("package", ""),
                 "text": "" if password else attrs.get("text", ""),
+                "hint": "" if password else attrs.get("hint", ""),
                 "description": "" if password else attrs.get("content-desc", ""),
                 "bounds": attrs.get("bounds", ""),
                 "clickable": attrs.get("clickable") == "true",
@@ -396,9 +397,11 @@ class AndroidTools:
                     # UiObject2 在输入框没有文字时返回 null。
                     if actual_text is None:
                         actual_text = ""
-                    if actual_text != action.text:
-                        raise RuntimeError("输入文字与读取结果不一致")
-                    details["text_verified"] = True
+                    expected_display = action.text if action.text else self.nodes[action.node_id]["hint"]
+                    if actual_text != expected_display:
+                        raise RuntimeError("输入后的显示文字与预期不一致")
+                    details["display_text_verified"] = True
+                    details["display_text"] = actual_text
                 elif action.operation == "scroll":
                     if not obj.info["scrollable"]:
                         raise HTTPException(409, "目标控件不能滚动")

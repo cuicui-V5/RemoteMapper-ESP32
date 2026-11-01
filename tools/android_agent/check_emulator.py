@@ -83,20 +83,19 @@ async def check(args):
         assert len(target) == 1, before
         await phone.execute(decision("click", node_id=target[0]["id"]), before, ["com.android.settings"])
         assert await asyncio.to_thread(device(className="android.widget.EditText").wait, timeout=10)
-        for value in ("RemoteMapper emulator", "", "RemoteMapper input check"):
+        for value in ("RemoteMapper emulator", "", "Device name", "RemoteMapper input check"):
             before = await phone.observe()
             editors = [node for node in before["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"]]
             assert len(editors) == 1, before
-            try:
-                result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
-            finally:
-                editor_info = await asyncio.to_thread(lambda: device(resourceId=editors[0]["resource_id"], className="android.widget.EditText").info)
-                print(json.dumps({"input_expected": value, "input_observed": editor_info}, ensure_ascii=False), flush=True)
-            assert result["text_verified"], result
+            result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
+            assert result["display_text_verified"], result
             after = await phone.observe()
             actual = [node["text"] for node in after["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"] == editors[0]["resource_id"]]
-            assert actual == [value], actual
-            print(json.dumps({"set_text_verified": value}), flush=True)
+            expected_display = value if value else editors[0]["hint"]
+            assert actual == [expected_display], actual
+            confirm = [node for node in after["nodes"] if node["resource_id"] == "android:id/button1"]
+            assert len(confirm) == 1 and confirm[0]["enabled"] == bool(value), confirm
+            print(json.dumps({"input_value": value, "display_text": actual[0], "confirm_enabled": confirm[0]["enabled"]}), flush=True)
         before = await phone.observe()
         await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
         name_after = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
