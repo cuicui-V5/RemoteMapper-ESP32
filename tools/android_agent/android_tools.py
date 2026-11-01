@@ -221,6 +221,7 @@ class AndroidTools:
 
     def read_tree(self):
         device = self.require_device()
+        device.jsonrpc.waitForIdle(10000)
         app_before = device.app_current()
         if app_before["package"] not in self.allowed_packages:
             digest = hashlib.sha256(compact({"app": app_before, "nodes": []}).encode()).hexdigest()
