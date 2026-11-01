@@ -1,0 +1,42 @@
+name: Mouse input verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: 持续生成按键输入的秒数
+        default: '7200'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  mouse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    env:
+      TMPDIR: ${{ github.workspace }}/work/runtime
+      FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '300' }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          submodules: true
+      - run: mkdir -p work/runtime work/corpus
+      - run: sudo apt-get update && sudo apt-get install -y clang libevdev-dev
+      - name: 检查鼠标按键语义和内存访问
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I src src/keymap/remote_pointer.c test/remote_pointer_test.c -o work/pointer-test
+          work/pointer-test
+      - name: 通过 Linux UHID 验证鼠标输入
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -I src -I test/virtual -I vendor/tinyusb/src $(pkg-config --cflags libevdev) src/keymap/remote_pointer.c test/virtual_mouse_test.c $(pkg-config --libs libevdev) -o work/virtual-mouse-test
+          sudo modprobe uhid
+          sudo work/virtual-mouse-test
+      - name: 持续生成按键、断连和时间变化
+        run: |
+          clang -std=c11 -Wall -Wextra -Werror -fsanitize=fuzzer,address,undefined -I src src/keymap/remote_pointer.c test/remote_pointer_fuzz.c -o work/pointer-fuzz
+          work/pointer-fuzz -max_total_time="$FUZZ_SECONDS" -max_len=4096 -timeout=5 -artifact_prefix=work/ work/corpus > work/fuzz.log 2>&1
+          tail -n 15 work/fuzz.log

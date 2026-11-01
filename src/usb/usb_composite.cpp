@@ -4,12 +4,16 @@
 #include "log/app_log.h"
 #include "led_indicator.h"
 #include "agent/controller.h"
+#include "keymap/mac_pointer.h"
 #include <Arduino.h>
 #include <atomic>
 #include "USB.h"
 #include "USBCDC.h"
 #include "USBHIDKeyboard.h"
 #include "USBHIDConsumerControl.h"
+#ifdef REMOTEMAPPER_MACOS
+#include "USBHIDMouse.h"
+#endif
 #include "tusb.h"
 #include "esp32-hal-tinyusb.h"
 #include "esp_system.h"
@@ -21,6 +25,11 @@ USBCDC USBSerial;
 static USBHIDKeyboard        s_keyboard;
 static USBHIDConsumerControl s_consumer;
 static USBHID                s_hid_reports;
+#ifdef REMOTEMAPPER_MACOS
+static USBHIDMouse s_mouse;
+static std::atomic<uint32_t> s_mouse_sent{0};
+static std::atomic<uint32_t> s_mouse_failed{0};
+#endif
 static bool                  s_usb_ready = false;
 static SemaphoreHandle_t      s_hid_mutex = NULL;
 
@@ -47,6 +56,11 @@ void usb_composite_init(void) {
     USB.usbAttributes(TUSB_DESC_CONFIG_ATT_SELF_POWERED | TUSB_DESC_CONFIG_ATT_REMOTE_WAKEUP);
 
     USB.onEvent([](void* arg, esp_event_base_t base, int32_t id, void* data) {
+#ifdef REMOTEMAPPER_MACOS
+        if (id == ARDUINO_USB_STOPPED_EVENT) {
+            mac_pointer_event(0, false, REMOTE_EVENT_DISCONNECT, true);
+        }
+#endif
         if (id == ARDUINO_USB_SUSPEND_EVENT) {
             app_log("USB", "USB Suspend Event (PC Sleep/Standby)");
         } else if (id == ARDUINO_USB_RESUME_EVENT) {
@@ -69,6 +83,9 @@ void usb_composite_init(void) {
 
     s_keyboard.begin();
     s_consumer.begin();
+#ifdef REMOTEMAPPER_MACOS
+    s_mouse.begin();
+#endif
     USB.begin();
     s_usb_ready = true;
 }
@@ -190,6 +207,26 @@ uint32_t usb_hid_consumer_sent(void) { return s_consumer_sent.load(std::memory_o
 uint32_t usb_hid_consumer_failed(void) { return s_consumer_failed.load(std::memory_order_relaxed); }
 uint32_t usb_hid_keyboard_sent(void) { return s_keyboard_sent.load(std::memory_order_relaxed); }
 uint32_t usb_hid_keyboard_failed(void) { return s_keyboard_failed.load(std::memory_order_relaxed); }
+
+#ifdef REMOTEMAPPER_MACOS
+bool usb_hid_mouse_report(uint8_t buttons, int8_t x, int8_t y, int8_t wheel, int8_t pan) {
+    if (!s_usb_ready) return false;
+    hid_lock();
+    if (tud_suspended()) {
+        tud_remote_wakeup();
+        vTaskDelay(pdMS_TO_TICKS(15));
+    }
+    hid_mouse_report_t report = {buttons, x, y, wheel, pan};
+    bool sent = s_hid_reports.SendReport(HID_REPORT_ID_MOUSE, &report, sizeof(report));
+    if (sent) s_mouse_sent.fetch_add(1, std::memory_order_relaxed);
+    else s_mouse_failed.fetch_add(1, std::memory_order_relaxed);
+    hid_unlock();
+    return sent;
+}
+
+uint32_t usb_hid_mouse_sent(void) { return s_mouse_sent.load(std::memory_order_relaxed); }
+uint32_t usb_hid_mouse_failed(void) { return s_mouse_failed.load(std::memory_order_relaxed); }
+#endif
 
 void usb_hid_dispatch_action(const key_action_t *action) {
     if (!action) return;

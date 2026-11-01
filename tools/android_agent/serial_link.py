@@ -56,8 +56,8 @@ class SerialLink:
 
     async def start(self):
         status = await self.raw("status")
-        if status["version"] != "1.2.1-macos.12":
-            raise RuntimeError("需要 1.2.1-macos.12 固件")
+        if status["version"] != "1.2.1-macos.13":
+            raise RuntimeError("需要 1.2.1-macos.13 固件")
         attached = await self.raw("agent " + json.dumps({"op": "attach", "session": self.session}, separators=(",", ":")))
         first = await self.raw('events {"begin":true}')
         self.boot = first["boot_id"]

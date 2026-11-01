@@ -3,6 +3,7 @@
 #include "ble/ble_remote_client.h"
 #include "keymap/key_definitions.h"
 #include "keymap/key_state_machine.h"
+#include "keymap/mac_pointer.h"
 #include "led_indicator.h"
 #include <ArduinoJson.h>
 #include <atomic>
@@ -50,6 +51,9 @@ static void set_mode(unsigned value) {
     if (value == s_mode.load()) return;
     xQueueReset(s_manual_keys);
     key_engine_release_all(&g_key_engine, millis());
+#ifdef REMOTEMAPPER_MACOS
+    mac_pointer_reset();
+#endif
     if (active()) cancel("mode_changed");
     s_mode.store(value);
 }
@@ -67,6 +71,9 @@ void agent_controller_init() {
     s_manual_keys = xQueueCreate(32, sizeof(uint8_t));
     configASSERT(s_events != nullptr);
     configASSERT(s_manual_keys != nullptr);
+#ifdef REMOTEMAPPER_MACOS
+    mac_pointer_init();
+#endif
 }
 
 bool agent_controller_mac_mode() {
@@ -83,6 +90,9 @@ bool agent_controller_event(uint8_t key, bool pressed, remote_event_source_t sou
         event.time_ms = millis();
         if (xQueueSend(s_events, &event, 0) != pdTRUE) s_overflow.store(true);
     }
+#ifdef REMOTEMAPPER_MACOS
+    if (s_mode.load() == MAC && mac_pointer_event(key, pressed, source, changed)) return false;
+#endif
     // 语音的音频生命周期始终由已有按键引擎管理。
     return key == MI_KEY_VOICE || (s_mode.load() == MAC && !(attached && key == MI_KEY_TV));
 }
@@ -171,6 +181,12 @@ void agent_controller_tick() {
     }
     if (active() && (uint32_t)(millis() - s_changed) > 120000) cancel("task_timeout");
     uint32_t color = 0;
+#ifdef REMOTEMAPPER_MACOS
+    if (s_mode.load() == MAC) {
+        mac_pointer_tick();
+        color = mac_pointer_color();
+    }
+#endif
     if (s_mode.load() != MAC) {
         color = s_mode.load() == ANDROID ? 0x001010 : 0x100010;
         if (s_stage == LISTENING) color = 0x000020;
@@ -257,6 +273,7 @@ String agent_controller_command(const String &arguments) {
         JsonObject action = request["action"].as<JsonObject>();
         String operation = action["operation"] | "";
         if (operation == "done") { stage(DONE); s_detail = action["explanation"] | ""; }
+        else if (operation == "failed") { stage(ERROR); s_detail = action["explanation"] | ""; }
         else if (operation == "app_start" || operation == "click" || operation == "set_text" || operation == "press") {
             if (measureJson(action) > 3072) error = "action_too_large";
             else { s_action = ""; serializeJson(action, s_action); stage(CONFIRM_ACTION); }

@@ -10,6 +10,7 @@
 #include "usb/uac_microphone.h"
 #include "agent/remote_events.h"
 #include "agent/controller.h"
+#include "keymap/mac_pointer.h"
 #ifdef REMOTEMAPPER_MACOS
 #include "iso_diagnostics.h"
 #endif
@@ -229,6 +230,10 @@ static void handle_command(const String& line) {
     }
 
 #ifdef REMOTEMAPPER_MACOS
+    if (cmd.equalsIgnoreCase("pointer")) {
+        cli_write_line(mac_pointer_status());
+        return;
+    }
     if (cmd.equalsIgnoreCase("usb_diag")) {
         remotemapper_dwc2_diagnostics_t state = {};
         remotemapper_dwc2_diagnostics(&state);

@@ -153,9 +153,15 @@ class AndroidTools:
             if self.gkd_marker.exists():
                 saved = json.loads(self.gkd_marker.read_text())
                 adb_device = adbutils.adb.device(serial=saved["serial"])
+                foreground = adb_device.app_current()
                 restored = adb_device.shell2(["am", "start", "-W", "-n", "li.songe.gkd/.MainActivity"], timeout=15)
                 if restored.returncode != 0 or adb_device.shell2(["pidof", "li.songe.gkd"], timeout=5).returncode != 0:
                     raise RuntimeError("GKD 应用恢复失败")
+                if foreground.package != "li.songe.gkd":
+                    returned = adb_device.shell2(["input", "keyevent", "KEYCODE_BACK"], timeout=5)
+                    current = adb_device.app_current()
+                    if returned.returncode != 0 or (current.package, current.activity) != (foreground.package, foreground.activity):
+                        raise RuntimeError("恢复 GKD 后未返回原来的手机界面")
                 self.gkd_marker.unlink()
             return {"state": "disconnected"}
 

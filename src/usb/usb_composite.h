@@ -54,6 +54,12 @@ bool usb_hid_consumer_tap(uint16_t usage_code);
 uint32_t usb_hid_consumer_sent(void);
 uint32_t usb_hid_consumer_failed(void);
 
+#ifdef REMOTEMAPPER_MACOS
+bool usb_hid_mouse_report(uint8_t buttons, int8_t x, int8_t y, int8_t wheel, int8_t pan);
+uint32_t usb_hid_mouse_sent(void);
+uint32_t usb_hid_mouse_failed(void);
+#endif
+
 /**
  * @brief Dispatch high-level key action to USB HID
  */
