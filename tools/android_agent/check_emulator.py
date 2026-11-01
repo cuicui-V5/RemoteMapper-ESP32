@@ -13,7 +13,7 @@ import uiautomator2 as u2
 import uvicorn
 
 from android_agent import Decision, PhoneClient
-from android_tools import create_app
+from android_tools import create_app, keyguard_locked
 
 
 def decision(operation, **values):
@@ -110,6 +110,7 @@ async def check(args):
         sleep = await asyncio.to_thread(adb_device.shell2, ["input", "keyevent", "KEYCODE_SLEEP"], timeout=5)
         assert sleep.returncode == 0
         locked = await phone.client.get("/v1/observe")
+        print(json.dumps({"keyguard_locked": await asyncio.to_thread(keyguard_locked, adb_device)}), flush=True)
         assert locked.status_code == 423, locked.text
         reconnect = await phone.client.post("/v1/connect", json={"serial": args.serial, "allowed_packages": ["com.android.settings"], "screen_off": True})
         assert reconnect.status_code == 423, reconnect.text
