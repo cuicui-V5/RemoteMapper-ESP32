@@ -2,6 +2,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import sqlite3
 import threading
@@ -29,6 +30,8 @@ MAX_XML_BYTES = 1024 * 1024
 class Connection(BaseModel):
     model_config = ConfigDict(extra="forbid")
     serial: str = Field(min_length=1, max_length=160)
+    allowed_packages: tuple[str, ...] = ("com.android.settings",)
+    screen_off: bool = False
 
 
 class Action(BaseModel):
@@ -36,7 +39,7 @@ class Action(BaseModel):
     operation_id: UUID
     generation: UUID
     observation_id: UUID | None
-    operation: Literal["app_start", "click", "set_text", "press"]
+    operation: Literal["app_start", "click", "set_text", "scroll", "press"]
     package: str | None = Field(default=None, max_length=200)
     node_id: int | None = Field(default=None, ge=0)
     text: str | None = Field(default=None, max_length=2000)
@@ -50,16 +53,29 @@ class Action(BaseModel):
             "app_start": {"package"},
             "click": {"node_id"},
             "set_text": {"node_id", "text"},
+            "scroll": {"node_id", "key"},
             "press": {"key"},
         }[self.operation]
         present = {name for name in ("package", "node_id", "text", "key") if getattr(self, name) is not None}
         if present != expected:
             raise ValueError("操作参数与 operation 不一致")
+        if self.operation == "scroll" and self.key not in ("up", "down"):
+            raise ValueError("滚动方向需要是 up 或 down")
         return self
 
 
 def compact(value):
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def keyguard_locked(adb_device):
+    result = adb_device.shell2(["dumpsys", "window", "policy"], timeout=5)
+    if result.returncode != 0:
+        raise RuntimeError("无法读取手机锁屏状态")
+    values = re.findall(r"^\s*showing=(true|false)\s*$", result.output, re.MULTILINE)
+    if len(values) != 1:
+        raise RuntimeError("手机没有返回明确的锁屏状态")
+    return values[0] == "true"
 
 
 class AndroidTools:
@@ -73,6 +89,8 @@ class AndroidTools:
         self.cancelled = False
         self.selected_serial = None
         self.monitor_failed = False
+        self.allowed_packages = frozenset()
+        self.screen_off = False
         self.gkd_marker = state_dir / "gkd-session.json"
         self.db = sqlite3.connect(state_dir / "operations.sqlite3", check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -105,13 +123,18 @@ class AndroidTools:
             raise HTTPException(409, "尚未选择 Android 设备")
         if self.device.adb_device.get_state() != "device":
             raise HTTPException(409, "Android 设备连接不可用")
+        if keyguard_locked(self.device.adb_device):
+            raise HTTPException(423, "手机已锁定，需要用户解锁后继续")
         return self.device
 
-    def connect(self, serial):
+    def connect(self, serial, allowed_packages, screen_off):
         with self.lock:
             available = {item["serial"]: item["state"] for item in self.devices()}
             if available.get(serial) != "device":
                 raise HTTPException(409, "指定设备未连接或尚未授权 USB 调试")
+            adb_device = adbutils.adb.device(serial=serial)
+            if keyguard_locked(adb_device):
+                raise HTTPException(423, "手机已锁定，需要用户解锁后继续")
             if self.device is not None:
                 self.device.stop_uiautomator()
             self.device = None
@@ -120,7 +143,12 @@ class AndroidTools:
                 self.generation = uuid4()
                 self.cancelled = False
                 self.selected_serial = serial
-            adb_device = adbutils.adb.device(serial=serial)
+            self.allowed_packages = frozenset(allowed_packages)
+            self.screen_off = screen_off
+            if screen_off:
+                dark = adb_device.shell2(["cmd", "display", "power-off", "0"], timeout=5)
+                if dark.returncode != 0:
+                    raise RuntimeError("手机无法进入息屏操作状态")
             running = adb_device.shell2(["pidof", "li.songe.gkd"], timeout=5)
             if running.returncode == 0:
                 self.gkd_marker.write_text(compact({"serial": serial, "restore": True}))
@@ -153,11 +181,12 @@ class AndroidTools:
             if self.gkd_marker.exists():
                 saved = json.loads(self.gkd_marker.read_text())
                 adb_device = adbutils.adb.device(serial=saved["serial"])
+                locked = keyguard_locked(adb_device)
                 foreground = adb_device.app_current()
                 restored = adb_device.shell2(["am", "start", "-W", "-n", "li.songe.gkd/.MainActivity"], timeout=15)
                 if restored.returncode != 0 or adb_device.shell2(["pidof", "li.songe.gkd"], timeout=5).returncode != 0:
                     raise RuntimeError("GKD 应用恢复失败")
-                if foreground.package != "li.songe.gkd":
+                if not locked and foreground.package != "li.songe.gkd":
                     returned = adb_device.shell2(["input", "keyevent", "KEYCODE_BACK"], timeout=5)
                     current = adb_device.app_current()
                     if returned.returncode != 0 or (current.package, current.activity) != (foreground.package, foreground.activity):
@@ -174,6 +203,9 @@ class AndroidTools:
     def read_tree(self):
         device = self.require_device()
         app_before = device.app_current()
+        if app_before["package"] not in self.allowed_packages:
+            digest = hashlib.sha256(compact({"app": app_before, "nodes": []}).encode()).hexdigest()
+            return [], digest, app_before
         xml = device.dump_hierarchy(compressed=False, pretty=False, max_depth=50)
         app_after = device.app_current()
         if app_before != app_after:
@@ -181,7 +213,7 @@ class AndroidTools:
         if len(xml.encode("utf-8")) > MAX_XML_BYTES:
             raise HTTPException(413, "Android 界面超过读取上限")
         root = ElementTree.fromstring(xml)
-        elements = list(root.iter("node"))
+        elements = [element for element in root.iter("node") if element.attrib.get("package") == app_after["package"]]
         if not elements:
             raise RuntimeError("Android 返回空界面")
         nodes = []
@@ -257,10 +289,10 @@ class AndroidTools:
             raise HTTPException(409, "控件需要属于当前前台应用")
         if node["password"] or not node["enabled"] or not node["resource_id"]:
             raise HTTPException(409, "需要有 resourceId 的已启用普通控件")
-        selector = {"resourceId": node["resource_id"], "className": node["class_name"], "packageName": node["package"]}
+        selector = {"resourceId": node["resource_id"], "className": node["class_name"], "packageName": node["package"], "text": node["text"], "description": node["description"]}
         obj = self.device(**selector)
         if obj.count != 1:
-            raise HTTPException(409, "resourceId 选择结果不唯一")
+            raise HTTPException(409, "控件属性组合不能唯一定位")
         return obj
 
     def execute(self, action):
@@ -277,6 +309,17 @@ class AndroidTools:
                 if self.cancelled or action.generation != self.generation:
                     raise HTTPException(409, "操作已取消或连接代次已经变化")
             device = self.require_device()
+            if action.operation == "app_start":
+                if action.package not in self.allowed_packages:
+                    raise HTTPException(403, "目标应用不在允许操作的范围内")
+            elif action.operation == "press" and action.key == "home":
+                pass
+            elif device.app_current()["package"] not in self.allowed_packages:
+                raise HTTPException(403, "当前应用不在允许操作的范围内")
+            if action.operation == "press" and action.key == "recent":
+                raise HTTPException(403, "任务不允许打开最近使用的应用")
+            if self.screen_off and action.operation == "press" and action.key in ("volume_up", "volume_down", "play_pause"):
+                raise HTTPException(403, "息屏任务不允许改变音量或播放媒体")
             if action.observation_id is not None:
                 if self.observation is None or str(action.observation_id) != self.observation["observation_id"]:
                     raise HTTPException(409, "操作引用的界面记录已经失效")
@@ -286,8 +329,6 @@ class AndroidTools:
                 if current_digest != self.observation["digest"]:
                     raise HTTPException(409, "手机界面已经变化，需要重新读取")
             obj = self.select(action.node_id) if action.node_id is not None else None
-            if action.operation == "app_start" and action.package not in device.app_list():
-                raise HTTPException(422, "手机尚未安装指定应用")
             with self.control_lock:
                 if self.cancelled or action.generation != self.generation:
                     raise HTTPException(409, "操作已取消")
@@ -321,6 +362,11 @@ class AndroidTools:
                     if obj.get_text(timeout=2) != action.text:
                         raise RuntimeError("输入文字与读取结果不一致")
                     details["text_verified"] = True
+                elif action.operation == "scroll":
+                    if not obj.info["scrollable"]:
+                        raise HTTPException(409, "目标控件不能滚动")
+                    direction = obj.scroll.vert.forward if action.key == "down" else obj.scroll.vert.backward
+                    details["moved"] = direction(steps=40)
                 else:
                     keys = {"back": "KEYCODE_BACK", "home": "KEYCODE_HOME", "up": "KEYCODE_DPAD_UP", "down": "KEYCODE_DPAD_DOWN", "left": "KEYCODE_DPAD_LEFT", "right": "KEYCODE_DPAD_RIGHT", "enter": "KEYCODE_DPAD_CENTER", "recent": "KEYCODE_APP_SWITCH", "volume_up": "KEYCODE_VOLUME_UP", "volume_down": "KEYCODE_VOLUME_DOWN", "play_pause": "KEYCODE_MEDIA_PLAY_PAUSE"}
                     response = device.shell(["input", "keyevent", keys[action.key]], timeout=5)
@@ -380,7 +426,7 @@ def create_app(state_dir: Path):
 
     @app.post("/v1/connect")
     def connect(request: Connection):
-        return controller.connect(request.serial)
+        return controller.connect(request.serial, request.allowed_packages, request.screen_off)
 
     @app.get("/v1/observe")
     def observe():

@@ -1,0 +1,93 @@
+import argparse
+import asyncio
+import json
+import os
+import secrets
+from pathlib import Path
+from uuid import uuid4
+
+import adbutils
+import uiautomator2 as u2
+import uvicorn
+
+from android_agent import Decision, PhoneClient
+from android_tools import create_app
+
+
+def decision(operation, **values):
+    return Decision(operation=operation, node_id=values.get("node_id"), package=values.get("package"), text=values.get("text"), key=values.get("key"), explanation="Android 模拟器接口验证")
+
+
+async def check(args):
+    phone = PhoneClient(args.state_dir)
+    try:
+        await phone.request("POST", "/v1/connect", {"serial": args.serial, "allowed_packages": ["com.android.settings"], "screen_off": True})
+        device = await asyncio.to_thread(u2.connect, args.serial)
+        before = await phone.observe()
+        await phone.execute(decision("app_start", package="com.android.settings"), before, ["com.android.settings"])
+        assert await asyncio.to_thread(device(textContains="Display").wait, timeout=10)
+        before = await phone.observe()
+        assert before["nodes"]
+        assert all(node["package"] == "com.android.settings" for node in before["nodes"])
+        titles = [node for node in before["nodes"] if node["resource_id"] == "android:id/title"]
+        assert len(titles) > 1
+        target = [node for node in titles if node["text"].startswith("Display")]
+        assert len(target) == 1
+        await phone.execute(decision("click", node_id=target[0]["id"]), before, ["com.android.settings"])
+        assert await asyncio.to_thread(device(textContains="Brightness").wait, timeout=10)
+        before = await phone.observe()
+        scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"]]
+        assert len(scrolls) == 1
+        result = await phone.execute(decision("scroll", node_id=scrolls[0]["id"], key="down"), before, ["com.android.settings"])
+        assert result["state"] == "complete"
+        before = await phone.observe()
+        assert all(node["package"] == "com.android.settings" for node in before["nodes"])
+        denied = await phone.client.post("/v1/actions", json={"operation_id": str(uuid4()), "generation": before["generation"], "observation_id": before["observation_id"], "operation": "app_start", "package": "com.android.systemui"})
+        assert denied.status_code == 403
+        await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
+        before = await phone.observe()
+        await phone.execute(decision("press", key="home"), before, ["com.android.settings"])
+        before = await phone.observe()
+        assert before["app"]["package"] != "com.android.settings"
+        assert before["nodes"] == []
+        await phone.execute(decision("app_start", package="com.android.settings"), before, ["com.android.settings"])
+        adb_device = adbutils.adb.device(serial=args.serial)
+        power = await asyncio.to_thread(adb_device.shell2, ["dumpsys", "display"], timeout=5)
+        assert power.returncode == 0
+        assert "mState=OFF" in power.output and "mCommittedState=OFF" in power.output
+        print(json.dumps({"same_resource_id_selection": "passed", "scroll": "passed", "package_filter": "passed", "unauthorized_app": "rejected", "launcher_content": "empty", "screen_off_operations": "passed"}, ensure_ascii=False), flush=True)
+    finally:
+        try:
+            await phone.request("POST", "/v1/disconnect", {})
+        finally:
+            await phone.client.aclose()
+
+
+async def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--serial", required=True)
+    parser.add_argument("--state-dir", required=True, type=Path)
+    args = parser.parse_args()
+    adb_device = adbutils.adb.device(serial=args.serial)
+    if adb_device.getprop("ro.kernel.qemu") != "1":
+        raise RuntimeError("此验证脚本只接受 Android 模拟器")
+    os.umask(0o077)
+    args.state_dir.mkdir(parents=True, exist_ok=True)
+    (args.state_dir / "token").write_text(secrets.token_urlsafe(32) + "\n")
+    server = uvicorn.Server(uvicorn.Config(create_app(args.state_dir), host="127.0.0.1", port=8765, access_log=False))
+    async with asyncio.TaskGroup() as group:
+        serving = group.create_task(server.serve())
+        while not server.started:
+            if serving.done():
+                serving.result()
+                raise RuntimeError("Android 工具服务启动失败")
+            await asyncio.sleep(0.05)
+        try:
+            await check(args)
+        finally:
+            server.should_exit = True
+            await serving
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

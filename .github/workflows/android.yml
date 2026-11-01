@@ -1,0 +1,35 @@
+name: Android tool verification
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TMPDIR: ${{ github.workspace }}/work/runtime
+      PYTHONPYCACHEPREFIX: ${{ github.workspace }}/work/pycache
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: mkdir -p work/runtime
+      - name: 安装工具服务依赖
+        run: |
+          python3 -m venv work/venv
+          work/venv/bin/python -m pip install --no-cache-dir uiautomator2==3.7.1 adbutils==2.12.0 fastapi==0.162.0 uvicorn==0.54.0 httpx==0.28.1 defusedxml==0.7.1 pydantic==2.14.2
+      - name: 启用虚拟机加速
+        run: sudo chmod 666 /dev/kvm
+      - name: 在 Android 16 上运行息屏和界面操作验证
+        uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          disable-animations: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: work/venv/bin/python tools/android_agent/check_emulator.py --serial emulator-5554 --state-dir work/emulator-state

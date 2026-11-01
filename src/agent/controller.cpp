@@ -274,7 +274,7 @@ String agent_controller_command(const String &arguments) {
         String operation = action["operation"] | "";
         if (operation == "done") { stage(DONE); s_detail = action["explanation"] | ""; }
         else if (operation == "failed") { stage(ERROR); s_detail = action["explanation"] | ""; }
-        else if (operation == "app_start" || operation == "click" || operation == "set_text" || operation == "press") {
+        else if (operation == "app_start" || operation == "click" || operation == "set_text" || operation == "scroll" || operation == "press") {
             if (measureJson(action) > 3072) error = "action_too_large";
             else { s_action = ""; serializeJson(action, s_action); stage(CONFIRM_ACTION); }
         } else error = "unknown_action";

@@ -160,7 +160,7 @@ async def main():
         nonlocal phone_connected, phone_ready, phone_generation
         if not phone_ready:
             phone_connected = True
-            connected = await phone.request("POST", "/v1/connect", {"serial": args.serial})
+            connected = await phone.request("POST", "/v1/connect", {"serial": args.serial, "allowed_packages": args.allow_package})
             phone_generation = connected["generation"]
             phone_ready = True
 
@@ -179,7 +179,7 @@ async def main():
                 raise RuntimeError("实体遥控器已经取消或接管任务")
         action = state["action"]
         if action.get("manual"):
-            decision = Decision(operation="press", resource_id=None, package=None, text=None, key=action["key"], explanation="实体按键操作")
+            decision = Decision(operation="press", node_id=None, package=None, text=None, key=action["key"], explanation="实体按键操作")
             await authorize()
             result = await phone.request("POST", "/v1/actions", {"operation_id": str(uuid4()), "generation": phone_generation, "observation_id": None, "operation": "press", "key": decision.key})
             return {"decision": decision.model_dump(), "result": result}
