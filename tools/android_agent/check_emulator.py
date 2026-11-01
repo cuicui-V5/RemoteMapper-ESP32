@@ -37,7 +37,9 @@ async def check(args):
             scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"] == "com.android.settings:id/recycler_view"]
             assert len(scrolls) == 1, before
             result = await phone.execute(decision("scroll", node_id=scrolls[0]["id"], key="down"), before, ["com.android.settings"])
-            assert result["moved"], before
+            after = await phone.observe()
+            print(json.dumps({"scroll_result": result, "labels": [node["text"] for node in after["nodes"] if node["text"]]}, ensure_ascii=False), flush=True)
+            assert result["moved"] and before["digest"] != after["digest"], after
         else:
             raise AssertionError("设置列表中没有找到 Display")
         assert before["nodes"]

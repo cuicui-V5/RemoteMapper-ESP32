@@ -91,6 +91,6 @@ GKD 与 uiautomator2 会竞争同一个 UiAutomation 连接。服务选择手机
 
 GitHub Actions 的 `Mouse input verification` 在独立 Linux 虚拟机中使用 TinyUSB 鼠标描述符创建 UHID 设备，把同一份按键处理代码生成的报告交给内核，再通过 libevdev 验证实际输入事件。随后使用 LibFuzzer、AddressSanitizer 和 UndefinedBehaviorSanitizer 持续生成按键、松开、断连及时间变化。手动运行工作流时可以指定持续测试时间。
 
-`Android tool verification` 在全新 Android 16 模拟器中验证重复控件标识、滚动、应用范围限制和息屏操作。`check_emulator.py` 会检查设备的模拟器标识。模拟输入验证与 ESP32、遥控器、Mac 的实体 USB 验证分别记录。
+`Android tool verification` 在全新 Android 16 模拟器中验证接口鉴权、重复请求、取消、真实 ADB 重连、重复控件标识、滚动、文字替换与清空、应用范围限制、息屏操作、音量与媒体按键限制，以及密码锁定后拒绝读取和连接。`check_emulator.py` 会检查设备的模拟器标识。模拟输入验证与 ESP32、遥控器、Mac 的实体 USB 验证分别记录。
 
 `annotations.py` 保存当前界面的文字备注。阅读页码或媒体时间需要调用方指定实际存在且唯一的控件标识；记录内容来自手机界面。

@@ -374,8 +374,9 @@ class AndroidTools:
                 elif action.operation == "scroll":
                     if not obj.info["scrollable"]:
                         raise HTTPException(409, "目标控件不能滚动")
-                    direction = obj.scroll.vert.forward if action.key == "down" else obj.scroll.vert.backward
-                    details["moved"] = direction(steps=40)
+                    obj.swipe("up" if action.key == "down" else "down", steps=40)
+                    _, after_digest, _ = self.read_tree()
+                    details["moved"] = after_digest != self.observation["digest"]
                 else:
                     keys = {"back": "KEYCODE_BACK", "home": "KEYCODE_HOME", "up": "KEYCODE_DPAD_UP", "down": "KEYCODE_DPAD_DOWN", "left": "KEYCODE_DPAD_LEFT", "right": "KEYCODE_DPAD_RIGHT", "enter": "KEYCODE_DPAD_CENTER", "recent": "KEYCODE_APP_SWITCH", "volume_up": "KEYCODE_VOLUME_UP", "volume_down": "KEYCODE_VOLUME_DOWN", "play_pause": "KEYCODE_MEDIA_PLAY_PAUSE"}
                     response = device.shell(["input", "keyevent", keys[action.key]], timeout=5)
