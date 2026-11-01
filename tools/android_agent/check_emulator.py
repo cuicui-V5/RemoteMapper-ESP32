@@ -28,12 +28,12 @@ async def check(args):
         assert await asyncio.to_thread(device(packageName="com.android.settings").wait, timeout=10)
         for page in range(5):
             before = await phone.observe()
-            print(json.dumps({"settings_page": page, "observation": before}, ensure_ascii=False), flush=True)
+            print(json.dumps({"settings_page": page, "labels": [node["text"] for node in before["nodes"] if node["text"]]}, ensure_ascii=False), flush=True)
             titles = [node for node in before["nodes"] if node["resource_id"] == "android:id/title"]
             target = [node for node in titles if node["text"].startswith("Display")]
             if target:
                 break
-            scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"]]
+            scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"] == "com.android.settings:id/recycler_view"]
             assert len(scrolls) == 1, before
             result = await phone.execute(decision("scroll", node_id=scrolls[0]["id"], key="down"), before, ["com.android.settings"])
             assert result["moved"], before
@@ -48,7 +48,7 @@ async def check(args):
         await phone.execute(decision("click", node_id=target[0]["id"]), before, ["com.android.settings"])
         assert await asyncio.to_thread(device(textContains="Brightness").wait, timeout=10)
         before = await phone.observe()
-        scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"]]
+        scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"] == "com.android.settings:id/recycler_view"]
         assert len(scrolls) == 1
         result = await phone.execute(decision("scroll", node_id=scrolls[0]["id"], key="down"), before, ["com.android.settings"])
         assert result["state"] == "complete"
