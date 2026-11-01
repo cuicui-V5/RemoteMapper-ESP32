@@ -104,7 +104,7 @@ async def check(args):
         assert power.returncode == 0
         modes = re.findall(r"^\s*powerMode=(.*)$", power.output, re.MULTILINE)
         print(json.dumps({"physical_display_power": modes}), flush=True)
-        assert len(modes) == 1 and modes[0].split()[0] == "OFF", modes
+        assert modes == ["Off"], modes
         pin = await asyncio.to_thread(adb_device.shell2, ["locksettings", "set-pin", "486217"], timeout=5)
         assert pin.returncode == 0, pin.output
         sleep = await asyncio.to_thread(adb_device.shell2, ["input", "keyevent", "KEYCODE_SLEEP"], timeout=5)
