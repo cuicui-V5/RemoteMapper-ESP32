@@ -87,7 +87,11 @@ async def check(args):
             before = await phone.observe()
             editors = [node for node in before["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"]]
             assert len(editors) == 1, before
-            result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
+            try:
+                result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
+            finally:
+                editor_info = await asyncio.to_thread(lambda: device(resourceId=editors[0]["resource_id"], className="android.widget.EditText").info)
+                print(json.dumps({"input_expected": value, "input_observed": editor_info}, ensure_ascii=False), flush=True)
             assert result["text_verified"], result
             after = await phone.observe()
             actual = [node["text"] for node in after["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"] == editors[0]["resource_id"]]
