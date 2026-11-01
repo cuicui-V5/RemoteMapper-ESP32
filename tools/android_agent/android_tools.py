@@ -384,11 +384,19 @@ class AndroidTools:
                         raise RuntimeError("ADB 点击执行失败")
                 elif action.operation == "set_text":
                     obj.set_text(action.text, timeout=2)
+                    device.jsonrpc.waitForIdle(10000)
                     if action.text:
                         obj.selector["text"] = action.text
                     elif "text" in obj.selector:
                         del obj.selector["text"]
-                    if obj.count != 1 or obj.get_text(timeout=2) != action.text:
+                    count = obj.count
+                    if count != 1:
+                        raise RuntimeError(f"输入后匹配了 {count} 个控件，需要恰好一个")
+                    actual_text = obj.get_text(timeout=2)
+                    # UiObject2 在输入框没有文字时返回 null。
+                    if actual_text is None:
+                        actual_text = ""
+                    if actual_text != action.text:
                         raise RuntimeError("输入文字与读取结果不一致")
                     details["text_verified"] = True
                 elif action.operation == "scroll":

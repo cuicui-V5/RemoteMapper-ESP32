@@ -89,6 +89,10 @@ async def check(args):
             assert len(editors) == 1, before
             result = await phone.execute(decision("set_text", node_id=editors[0]["id"], text=value), before, ["com.android.settings"])
             assert result["text_verified"], result
+            after = await phone.observe()
+            actual = [node["text"] for node in after["nodes"] if node["class_name"] == "android.widget.EditText" and node["resource_id"] == editors[0]["resource_id"]]
+            assert actual == [value], actual
+            print(json.dumps({"set_text_verified": value}), flush=True)
         before = await phone.observe()
         await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
         name_after = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
