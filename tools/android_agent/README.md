@@ -16,7 +16,7 @@ work/venv/bin/python -m pip install -r tools/android_agent/requirements.txt
 work/venv/bin/python tools/android_agent/android_tools.py init --state-dir work/android-state
 ```
 
-将 Android SDK Platform Tools 放在 `work/deps/platform-tools`，确保 `work/deps/platform-tools/adb devices` 能看到已授权设备。将 `mlx-community/whisper-large-v3-turbo` 模型下载至 `work/models/whisper-large-v3-turbo`。首次使用需要允许运行 Python 的终端访问麦克风。
+将 Android SDK Platform Tools 放在 `work/deps/platform-tools`，确保 `work/deps/platform-tools/adb devices` 能看到已授权设备。使用遥控器语音时，将 `mlx-community/whisper-large-v3-turbo` 模型下载至 `work/models/whisper-large-v3-turbo`，并允许运行 Python 的终端访问麦克风。
 
 固件构建：
 
@@ -40,6 +40,10 @@ work/venv/bin/python tools/android_agent/android_agent.py \
 ```
 
 这个入口自动启动本地工具服务、连接手机、获取模型决策、执行操作、验证结果并释放连接。任务未完成时会报错，操作记录保存在 `--output` 指定的文件中。
+
+Android 16 手机可以加上 `--screen-off`，通过 `cmd display power-off 0` 关闭物理屏幕后操作。启动时手机需要已经解锁；密码锁定时接口返回 423，并停止界面读取和操作。息屏任务禁止调整音量、播放媒体和打开最近使用的应用。
+
+模型通过当前界面的控件编号选择操作，再使用控件属性重新定位。文字不同、`resource_id` 相同的列表项可以分别选择。`scroll` 在所选列表内向上或向下滚动。每项决策保留此前实际观察到的界面和操作结果，单个任务最多执行 32 次决策。
 
 Mac 鼠标在 `macos.13` 固件的 Mac 模式下直接通过 USB 使用，按键如下：
 
@@ -69,9 +73,9 @@ Mac 模式的语音按下和释放分别发送一次 `Control+Option+V`，微信
 
 工作期间紫色灯闪烁，录音期间为蓝色，完成后为绿色。程序退出或心跳中断超过五秒时，固件返回 Mac 模式。任务等待超过两分钟时取消。
 
-默认允许 Agent 操作系统设置。需要其他应用时显式传入 `--allow-package`。模型接收当前界面的控件文字、包名和任务历史；本地日志也会保存这些信息，存放在 `work/`。模型通过当前 Codex 账号调用，使用量计入该账号。
+默认允许 Agent 操作系统设置。需要其他应用时显式传入 `--allow-package`。工具服务在读取前检查前台应用，仅请求活动窗口，并保留允许应用的控件；通知栏内容不会发送给模型或写入任务记录。前台应用不在允许范围内时，界面记录包含空的控件列表。模型接收允许界面的控件文字、包名和任务历史；本地日志存放在 `work/`。模型通过当前 Codex 账号调用，使用量计入该账号。
 
-GKD 与 uiautomator2 会竞争同一个 UiAutomation 连接。服务选择手机时会暂停正在运行的 GKD，释放手机时恢复 GKD，并检查已返回任务结束时的前台应用。
+GKD 与 uiautomator2 会竞争同一个 UiAutomation 连接。服务选择手机时会暂停正在运行的 GKD，释放手机时恢复 GKD。手机处于解锁状态时，会返回任务结束时的前台应用；已经锁定时保留锁屏。
 
 ## 接口与验证
 
@@ -84,5 +88,9 @@ GKD 与 uiautomator2 会竞争同一个 UiAutomation 连接。服务选择手机
 `check_firmware.py` 在真实 ESP32 上验证命令重复处理、实体确认要求、取消和心跳过期。运行时指定 `--port`、`--work-dir`。独立启动 `android_tools.py serve --state-dir work/android-state` 后，`check_service.py --state-dir work/android-state` 检查本地接口；`check_reliability.py` 需要额外提供 `--adb`、`--serial`、`--output`，会在真实手机上测试重复请求、取消和 ADB 重连。
 
 `test/remote_pointer_test.c` 直接测试鼠标按键处理代码，覆盖精细移动、加速上限、按键释放、左右键、拖动、横向与纵向滚动、模式切换和时钟回绕。串口 `pointer` 返回滚动、拖动和 HID 发送状态。
+
+GitHub Actions 的 `Mouse input verification` 在独立 Linux 虚拟机中使用 TinyUSB 鼠标描述符创建 UHID 设备，把同一份按键处理代码生成的报告交给内核，再通过 libevdev 验证实际输入事件。随后使用 LibFuzzer、AddressSanitizer 和 UndefinedBehaviorSanitizer 持续生成按键、松开、断连及时间变化。手动运行工作流时可以指定持续测试时间。
+
+`Android tool verification` 在全新 Android 16 模拟器中验证重复控件标识、滚动、应用范围限制和息屏操作。`check_emulator.py` 会检查设备的模拟器标识。模拟输入验证与 ESP32、遥控器、Mac 的实体 USB 验证分别记录。
 
 `annotations.py` 保存当前界面的文字备注。阅读页码或媒体时间需要调用方指定实际存在且唯一的控件标识；记录内容来自手机界面。

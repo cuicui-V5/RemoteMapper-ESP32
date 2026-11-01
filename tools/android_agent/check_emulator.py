@@ -25,8 +25,20 @@ async def check(args):
         device = await asyncio.to_thread(u2.connect, args.serial)
         before = await phone.observe()
         await phone.execute(decision("app_start", package="com.android.settings"), before, ["com.android.settings"])
-        assert await asyncio.to_thread(device(textContains="Display").wait, timeout=10)
-        before = await phone.observe()
+        assert await asyncio.to_thread(device(packageName="com.android.settings").wait, timeout=10)
+        for page in range(5):
+            before = await phone.observe()
+            print(json.dumps({"settings_page": page, "observation": before}, ensure_ascii=False), flush=True)
+            titles = [node for node in before["nodes"] if node["resource_id"] == "android:id/title"]
+            target = [node for node in titles if node["text"].startswith("Display")]
+            if target:
+                break
+            scrolls = [node for node in before["nodes"] if node["scrollable"] and node["resource_id"]]
+            assert len(scrolls) == 1, before
+            result = await phone.execute(decision("scroll", node_id=scrolls[0]["id"], key="down"), before, ["com.android.settings"])
+            assert result["moved"], before
+        else:
+            raise AssertionError("设置列表中没有找到 Display")
         assert before["nodes"]
         assert all(node["package"] == "com.android.settings" for node in before["nodes"])
         titles = [node for node in before["nodes"] if node["resource_id"] == "android:id/title"]

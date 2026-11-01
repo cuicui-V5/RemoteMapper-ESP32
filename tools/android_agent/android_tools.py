@@ -206,7 +206,7 @@ class AndroidTools:
         if app_before["package"] not in self.allowed_packages:
             digest = hashlib.sha256(compact({"app": app_before, "nodes": []}).encode()).hexdigest()
             return [], digest, app_before
-        xml = device.dump_hierarchy(compressed=False, pretty=False, max_depth=50)
+        xml = device.dump_hierarchy(compressed=False, pretty=False, max_depth=50, root_in_active=True)
         app_after = device.app_current()
         if app_before != app_after:
             raise HTTPException(409, "读取期间前台应用发生变化，需要重新读取")
