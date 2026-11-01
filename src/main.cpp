@@ -13,6 +13,8 @@
 #include "led_indicator.h"
 #include "config/config_manager.h"
 #include "ota/ota_manager.h"
+#include "agent/remote_events.h"
+#include "agent/controller.h"
 
 #include <nvs_flash.h>
 #include <nvs.h>
@@ -41,6 +43,8 @@ void setup() {
 
     // 1. Initialize Log System first
     app_log_init();
+    remote_events_init();
+    agent_controller_init();
     
     // 1.5. Initialize LED Indicator
     led_indicator_init();
@@ -120,6 +124,7 @@ void loop() {
 
     // 4. Service Serial / WebSerial CLI commands
     cli_manager_task();
+    agent_controller_tick();
 
     // 5. Confirm safe-boot watchdog once the new firmware has run stably
     ota_manager_watchdog_confirm();

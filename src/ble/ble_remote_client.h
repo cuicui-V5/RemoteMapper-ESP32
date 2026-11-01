@@ -37,6 +37,7 @@ ble_remote_state_t ble_remote_get_state(void);
  * @brief Trigger manual reconnect / re-scan
  */
 void ble_remote_trigger_reconnect(void);
+void ble_remote_stop_voice(void);
 
 /**
  * @brief Scan for nearby BLE devices and return JSON list

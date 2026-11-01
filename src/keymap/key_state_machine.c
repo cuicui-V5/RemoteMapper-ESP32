@@ -236,7 +236,7 @@ void key_engine_load_defaults(key_mapper_engine_t *engine) {
         memset(&b, 0, sizeof(b));
         b.source_vk = MI_KEY_VOICE;
         b.has_click = true;
-        b.click_action = (key_action_t){ ACTION_VOICE_HOLD, DEFAULT_VOICE_MODIFIER, DEFAULT_VOICE_KEY, 0, 0 };
+        b.click_action = (key_action_t){ DEFAULT_VOICE_ACTION, DEFAULT_VOICE_MODIFIER, DEFAULT_VOICE_KEY, 0, 0 };
         l0->bindings[l0->binding_count++] = b;
     }
 

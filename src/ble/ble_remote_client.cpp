@@ -4,11 +4,13 @@
 #include "keymap/key_state_machine.h"
 #include "usb/usb_composite.h"
 #include "log/app_log.h"
+#include "agent/remote_events.h"
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 #include <vector>
+#include <atomic>
 
 static ble_remote_state_t              s_ble_state = BLE_STATE_DISCONNECTED;
 static NimBLEClient*                   s_client = nullptr;
@@ -41,12 +43,17 @@ static portMUX_TYPE                    s_disc_mux = portMUX_INITIALIZER_UNLOCKED
 // Asynchronous Request flags from other tasks (e.g. WebServer on Core 1)
 static volatile bool                   s_req_unpair = false;
 static volatile bool                   s_req_reconnect = false;
+static std::atomic<bool> s_req_stop_voice{false};
 static volatile bool                   s_do_connect = false;
 static NimBLEAdvertisedDevice*         s_pending_adv_device = nullptr;
 static String                          s_pending_mac = "";
 static uint8_t                         s_pending_addr_type = BLE_ADDR_RANDOM;
 
 static uint8_t                         s_session_id = 0;
+static bool                            s_mic_open_pending = false;
+static uint32_t                        s_audio_notifications = 0;
+static uint32_t                        s_audio_bytes = 0;
+static uint32_t                        s_audio_start_ms = 0;
 static uint32_t                        s_last_audio_ms = 0;
 static uint32_t                        s_last_extend_ms = 0;
 static uint32_t                        s_last_scan_ms = 0;
@@ -61,6 +68,56 @@ static bool do_connect_adv_device(NimBLEAdvertisedDevice* advDevice);
 static bool do_connect_mac(const String& mac_str, uint8_t addr_type);
 static bool setup_services_and_handshake();
 
+static bool write_atvv_command(const char* name, const uint8_t* data, size_t length) {
+    if (!s_char_cmd) {
+        app_log("ATVV", "%s failed: command characteristic unavailable", name);
+        return false;
+    }
+    if (!s_char_cmd->writeValue(data, length, false)) {
+        app_log("ATVV", "%s write failed", name);
+        return false;
+    }
+    app_log("ATVV", "%s queued", name);
+    return true;
+}
+
+static bool subscribe_atvv_notifications(NimBLERemoteCharacteristic* characteristic,
+                                         const char* name, notify_callback callback) {
+    if (!characteristic->canNotify()) {
+        app_log("ATVV", "%s subscription failed: notifications unavailable", name);
+        return false;
+    }
+    if (!characteristic->getDescriptor(NimBLEUUID((uint16_t)0x2902))) {
+        app_log("ATVV", "%s subscription failed: CCCD unavailable", name);
+        return false;
+    }
+    if (!characteristic->subscribe(true, callback, true)) {
+        app_log("ATVV", "%s subscription failed: CCCD write rejected", name);
+        return false;
+    }
+    app_log("ATVV", "%s notifications subscribed", name);
+    return true;
+}
+
+static void request_microphone_open() {
+    // HTT 已开始传输时保留当前会话；START_SEARCH 与 HID 可重复报告同一次按下。
+    if (s_ble_state == BLE_STATE_TALKING || s_mic_open_pending) return;
+    const uint8_t command[] = {0x0C, 0x00};
+    s_mic_open_pending = true;
+    if (!write_atvv_command("MIC_OPEN", command, sizeof(command))) {
+        s_mic_open_pending = false;
+    }
+}
+
+static void request_microphone_close() {
+    if (s_ble_state != BLE_STATE_TALKING && !s_mic_open_pending) return;
+    const uint8_t stream_id = s_ble_state == BLE_STATE_TALKING ? s_session_id : 0;
+    const uint8_t command[] = {0x0D, stream_id};
+    if (write_atvv_command("MIC_CLOSE", command, sizeof(command))) {
+        s_mic_open_pending = false;
+    }
+}
+
 // Battery Notification Callback (0x180F / 0x2A19)
 static void on_battery_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
     if (pData && length >= 1) {
@@ -74,7 +131,14 @@ static void on_battery_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData,
 static void on_audio_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, size_t length, bool isNotify) {
     if (length == 0) return;
     s_last_audio_ms = millis();
+    s_audio_notifications++;
+    s_audio_bytes += length;
     audio_pipeline_feed_adpcm(&g_audio_pipeline, pData, length);
+    if (s_audio_notifications == 1) {
+        app_log("ATVV", "First audio packet: stream=%u bytes=%u active=%d decoded_frames=%u",
+                (unsigned)s_session_id, (unsigned)length, g_audio_pipeline.active ? 1 : 0,
+                (unsigned)g_audio_pipeline.total_frames_decoded);
+    }
 }
 
 // Control Notification Callback (ATVV Char 0x04)
@@ -82,26 +146,57 @@ static void on_ctl_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pData, siz
     if (length < 1) return;
     uint8_t op = pData[0];
 
-    // AUDIO_START with HTT reason: byte1 == 0x03
-    if (op == 0x04 && length >= 2 && pData[1] == 0x03) {
-        s_session_id = (length >= 4) ? pData[3] : 0;
+    // Google Voice over BLE v1.0 §4.3.1：reason、codec、stream id 各占一个字节。
+    if (op == 0x04) {
+        if (length < 4) {
+            app_log("ATVV", "AUDIO_START rejected: length=%u", (unsigned)length);
+            return;
+        }
+        s_session_id = pData[3];
+        s_mic_open_pending = false;
+        s_audio_notifications = 0;
+        s_audio_bytes = 0;
+        s_audio_start_ms = millis();
         s_ble_state = BLE_STATE_TALKING;
         s_last_audio_ms = millis();
         s_last_extend_ms = millis();
 
-        key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, true, millis());
-        app_log("ATVV", ">>> Voice button PRESSED (session %d)", s_session_id);
+        if (remote_events_record(MI_KEY_VOICE, true, REMOTE_EVENT_ATVV))
+            key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, true, millis());
+        app_log("ATVV", "Audio start: reason=0x%02X codec=0x%02X stream=%u",
+                pData[1], pData[2], (unsigned)s_session_id);
     }
-    // AUDIO_STOP / MIC_CLOSED / release op (0x00 or 0x08):
-    else if (op == 0x00 || op == 0x08) {
-        if (s_ble_state == BLE_STATE_TALKING) {
-            s_ble_state = BLE_STATE_CONNECTED;
-            key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, millis());
-            app_log("ATVV", "<<< Voice button RELEASED (op=0x%02X)", op);
-        } else {
-            app_log("ATVV", "Microphone inactive / standby (op=0x%02X)", op);
+    else if (op == 0x00) {
+        if (length < 2) {
+            app_log("ATVV", "AUDIO_STOP rejected: length=%u", (unsigned)length);
+            return;
         }
-        // NOTE: Do NOT send cmd_open (MIC_OPEN) here. Keep microphone off so the remote can sleep.
+        s_mic_open_pending = false;
+        if (s_ble_state == BLE_STATE_TALKING) {
+            app_log("ATVV", "Audio stop: reason=0x%02X stream=%u duration_ms=%u packets=%u bytes=%u decoded_frames=%u samples_pushed=%u",
+                    pData[1], (unsigned)s_session_id, (unsigned)(millis() - s_audio_start_ms),
+                    (unsigned)s_audio_notifications, (unsigned)s_audio_bytes,
+                    (unsigned)g_audio_pipeline.total_frames_decoded,
+                    (unsigned)g_audio_pipeline.total_samples_pushed);
+            s_ble_state = BLE_STATE_CONNECTED;
+            if (remote_events_record(MI_KEY_VOICE, false, REMOTE_EVENT_ATVV))
+                key_engine_feed_key(&g_key_engine, MI_KEY_VOICE, false, millis());
+        } else {
+            app_log("ATVV", "Microphone inactive: stop_reason=0x%02X", pData[1]);
+        }
+    }
+    else if (op == 0x08) {
+        app_log("ATVV", "START_SEARCH received");
+        request_microphone_open();
+    }
+    else if (op == 0x0C) {
+        if (length < 3) {
+            app_log("ATVV", "MIC_OPEN_ERROR rejected: length=%u", (unsigned)length);
+            return;
+        }
+        s_mic_open_pending = false;
+        const uint16_t error_code = (pData[1] << 8) | pData[2];
+        app_log("ATVV", "MIC_OPEN_ERROR code=0x%04X", error_code);
     }
     // CAPS_RESP: op == 0x0B
     else if (op == 0x0B && length >= 7) {
@@ -196,7 +291,9 @@ static void on_hogp_report_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pD
     // Auto-release previous key if a new key is pressed without an explicit all-zero release report
     if (s_last_hogp_key != 0 && is_pressed && raw_key != s_last_hogp_key) {
         app_log("HOGP", "Auto-Release key 0x%02X due to new key 0x%02X", s_last_hogp_key, raw_key);
-        key_engine_feed_key(&g_key_engine, s_last_hogp_key, false, millis());
+        if (s_last_hogp_key == MI_KEY_VOICE || s_last_hogp_key == MI_KEY_VOICE_ALT) request_microphone_close();
+        if (remote_events_record(s_last_hogp_key, false, REMOTE_EVENT_INFERRED_RELEASE))
+            key_engine_feed_key(&g_key_engine, s_last_hogp_key, false, millis());
         s_last_hogp_key = 0;
     }
 
@@ -211,22 +308,13 @@ static void on_hogp_report_notify(NimBLERemoteCharacteristic* pChar, uint8_t* pD
         if (raw_key == MI_KEY_VOICE || raw_key == MI_KEY_VOICE_ALT) {
             app_log("VOICE", "Voice button event: 0x%02X (%s)", raw_key, is_pressed ? "DOWN" : "UP");
             if (is_pressed) {
-                if (s_char_cmd != nullptr) {
-                    uint8_t cmd_open[] = { 0x0C, 0x00 };
-                    s_char_cmd->writeValue(cmd_open, sizeof(cmd_open), false);
-                    app_log("ATVV", "Triggered MIC_OPEN on Voice key press");
-                } else {
-                    app_log("ATVV", "Warning: Voice key pressed but ATVV CMD characteristic unavailable");
-                }
+                request_microphone_open();
             } else {
-                if (s_char_cmd != nullptr) {
-                    uint8_t cmd_close[] = { 0x00 };
-                    s_char_cmd->writeValue(cmd_close, sizeof(cmd_close), false);
-                    app_log("ATVV", "Triggered MIC_CLOSE on Voice key release");
-                }
+                request_microphone_close();
             }
         }
-        key_engine_feed_key(&g_key_engine, raw_key, is_pressed, millis());
+        if (remote_events_record(raw_key, is_pressed, REMOTE_EVENT_HOGP))
+            key_engine_feed_key(&g_key_engine, raw_key, is_pressed, millis());
     }
 }
 
@@ -359,6 +447,9 @@ class ClientCallbacks : public NimBLEClientCallbacks {
         s_char_bat = nullptr;
         s_battery_pct = -1;
         s_last_hogp_key = 0;
+        s_mic_open_pending = false;
+        s_session_id = 0;
+        remote_events_record(0, false, REMOTE_EVENT_DISCONNECT);
         key_engine_release_all(&g_key_engine, millis());
         usb_hid_keyboard_release();
         usb_hid_consumer_release();
@@ -472,21 +563,15 @@ static bool setup_services_and_handshake() {
                     s_char_cmd = pChar;
                     app_log("ATVV", "Matched ATVV CMD Char: %s", char_uuid.c_str());
                 } else if (char_uuid.indexOf("ab5e0003") >= 0) {
+                    if (!subscribe_atvv_notifications(pChar, "AUD", on_audio_notify)) return false;
                     s_char_aud = pChar;
-                    if (pChar->canNotify()) {
-                        pChar->subscribe(true, on_audio_notify, false);
-                        sub_count++;
-                        app_log("ATVV", "Subscribed to ATVV AUD Char: %s", char_uuid.c_str());
-                        vTaskDelay(pdMS_TO_TICKS(25));
-                    }
+                    sub_count++;
+                    vTaskDelay(pdMS_TO_TICKS(25));
                 } else if (char_uuid.indexOf("ab5e0004") >= 0) {
+                    if (!subscribe_atvv_notifications(pChar, "CTL", on_ctl_notify)) return false;
                     s_char_ctl = pChar;
-                    if (pChar->canNotify()) {
-                        pChar->subscribe(true, on_ctl_notify, false);
-                        sub_count++;
-                        app_log("ATVV", "Subscribed to ATVV CTL Char: %s", char_uuid.c_str());
-                        vTaskDelay(pdMS_TO_TICKS(25));
-                    }
+                    sub_count++;
+                    vTaskDelay(pdMS_TO_TICKS(25));
                 }
             }
         }
@@ -586,8 +671,7 @@ static bool setup_services_and_handshake() {
     // 4. ATVV Handshake: query CAPS capability only. Do NOT force mic open at boot.
     if (s_char_cmd) {
         uint8_t cmd_caps[] = { 0x0A, 0x01, 0x00, 0x00, 0x03, 0x03 };
-        s_char_cmd->writeValue(cmd_caps, sizeof(cmd_caps), false);
-        app_log("ATVV", "Handshake: GET_CAPS query sent (Mic remains in low-power standby)");
+        if (!write_atvv_command("GET_CAPS", cmd_caps, sizeof(cmd_caps))) return false;
     }
 
     s_ble_state = BLE_STATE_CONNECTED;
@@ -726,6 +810,7 @@ void ble_remote_init(void) {
 }
 
 void ble_remote_task(void) {
+    if (s_req_stop_voice.exchange(false)) request_microphone_close();
     uint32_t now = millis();
 
     // 1. Process asynchronous unpair / reconnect requests from Core 1
@@ -792,17 +877,17 @@ void ble_remote_task(void) {
                         char_uuid.toLowerCase();
                         if (char_uuid.indexOf("ab5e0002") >= 0) s_char_cmd = pChar;
                         else if (char_uuid.indexOf("ab5e0003") >= 0) {
+                            if (!subscribe_atvv_notifications(pChar, "AUD", on_audio_notify)) return;
                             s_char_aud = pChar;
-                            if (pChar->canNotify()) pChar->subscribe(true, on_audio_notify, false);
                         } else if (char_uuid.indexOf("ab5e0004") >= 0) {
+                            if (!subscribe_atvv_notifications(pChar, "CTL", on_ctl_notify)) return;
                             s_char_ctl = pChar;
-                            if (pChar->canNotify()) pChar->subscribe(true, on_ctl_notify, false);
                         }
                     }
                     if (s_char_cmd) {
                         app_log("ATVV", "Background recovery succeeded: cmd=%p, aud=%p, ctl=%p", s_char_cmd, s_char_aud, s_char_ctl);
                         uint8_t cmd_caps[] = { 0x0A, 0x01, 0x00, 0x00, 0x03, 0x03 };
-                        s_char_cmd->writeValue(cmd_caps, sizeof(cmd_caps), false);
+                        if (!write_atvv_command("GET_CAPS", cmd_caps, sizeof(cmd_caps))) return;
                     }
                 }
             }
@@ -832,6 +917,10 @@ ble_remote_state_t ble_remote_get_state(void) {
 void ble_remote_trigger_reconnect(void) {
     app_log("BLE", "Triggering BLE reconnection on Core 0...");
     s_req_reconnect = true;
+}
+
+void ble_remote_stop_voice(void) {
+    s_req_stop_voice.store(true);
 }
 
 String ble_remote_scan_devices_json(void) {
