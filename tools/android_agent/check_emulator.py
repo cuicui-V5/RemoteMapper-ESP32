@@ -2,6 +2,7 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import secrets
 import sys
 from pathlib import Path
@@ -21,6 +22,9 @@ def decision(operation, **values):
 
 async def check(args):
     phone = PhoneClient(args.state_dir)
+    adb_device = adbutils.adb.device(serial=args.serial)
+    stay_before = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "stay_on_while_plugged_in"], timeout=5)
+    assert stay_before.returncode == 0
     try:
         await phone.request("POST", "/v1/connect", {"serial": args.serial, "allowed_packages": ["com.android.settings"], "screen_off": True})
         device = await asyncio.to_thread(u2.connect, args.serial)
@@ -69,7 +73,6 @@ async def check(args):
         assert before["app"]["package"] != "com.android.settings"
         assert before["nodes"] == []
         await phone.execute(decision("app_start", package="com.android.settings"), before, ["com.android.settings"])
-        adb_device = adbutils.adb.device(serial=args.serial)
         name_before = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
         assert name_before.returncode == 0
         opened = await asyncio.to_thread(adb_device.shell2, ["am", "start", "-W", "-a", "android.settings.DEVICE_INFO_SETTINGS"], timeout=10)
@@ -90,9 +93,11 @@ async def check(args):
         await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
         name_after = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "device_name"], timeout=5)
         assert name_after.returncode == 0 and name_after.output == name_before.output
-        power = await asyncio.to_thread(adb_device.shell2, ["dumpsys", "display"], timeout=5)
+        power = await asyncio.to_thread(adb_device.shell2, ["dumpsys", "SurfaceFlinger"], timeout=10)
         assert power.returncode == 0
-        assert "mState=OFF" in power.output and "mCommittedState=OFF" in power.output
+        modes = re.findall(r"^\s*powerMode=(.*)$", power.output, re.MULTILINE)
+        print(json.dumps({"physical_display_power": modes}), flush=True)
+        assert len(modes) == 1 and modes[0].split()[0] == "OFF", modes
         pin = await asyncio.to_thread(adb_device.shell2, ["locksettings", "set-pin", "486217"], timeout=5)
         assert pin.returncode == 0, pin.output
         sleep = await asyncio.to_thread(adb_device.shell2, ["input", "keyevent", "KEYCODE_SLEEP"], timeout=5)
@@ -105,6 +110,8 @@ async def check(args):
     finally:
         try:
             await phone.request("POST", "/v1/disconnect", {})
+            stay_after = await asyncio.to_thread(adb_device.shell2, ["settings", "get", "global", "stay_on_while_plugged_in"], timeout=5)
+            assert stay_after.returncode == 0 and stay_after.output == stay_before.output
         finally:
             await phone.client.aclose()
 

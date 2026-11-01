@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import sqlite3
+import subprocess
 import threading
 import time
 from dataclasses import asdict
@@ -91,6 +92,8 @@ class AndroidTools:
         self.monitor_failed = False
         self.allowed_packages = frozenset()
         self.screen_off = False
+        self.screen_process = None
+        self.screen_log = state_dir / "screen-off.log"
         self.gkd_marker = state_dir / "gkd-session.json"
         self.db = sqlite3.connect(state_dir / "operations.sqlite3", check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
@@ -121,6 +124,8 @@ class AndroidTools:
             raise HTTPException(503, "ADB 连接监听已经终止，需要重新启动服务")
         if self.device is None:
             raise HTTPException(409, "尚未选择 Android 设备")
+        if self.screen_process is not None and self.screen_process.poll() is not None:
+            raise HTTPException(503, "scrcpy 息屏控制已经终止")
         if self.device.adb_device.get_state() != "device":
             raise HTTPException(409, "Android 设备连接不可用")
         if keyguard_locked(self.device.adb_device):
@@ -135,6 +140,8 @@ class AndroidTools:
             adb_device = adbutils.adb.device(serial=serial)
             if keyguard_locked(adb_device):
                 raise HTTPException(423, "手机已锁定，需要用户解锁后继续")
+            if self.screen_process is not None:
+                raise HTTPException(409, "需要先断开当前息屏任务")
             if self.device is not None:
                 self.device.stop_uiautomator()
             self.device = None
@@ -146,9 +153,16 @@ class AndroidTools:
             self.allowed_packages = frozenset(allowed_packages)
             self.screen_off = screen_off
             if screen_off:
-                dark = adb_device.shell2(["cmd", "display", "power-off", "0"], timeout=5)
-                if dark.returncode != 0:
-                    raise RuntimeError("手机无法进入息屏操作状态")
+                arguments = ["scrcpy", "--serial", serial, "--no-window", "--no-video", "--no-audio", "--no-clipboard-autosync", "--no-power-on", "--keyboard=disabled", "--mouse=disabled", "--turn-screen-off", "--stay-awake", "--power-off-on-close"]
+                with self.screen_log.open("w") as log:
+                    self.screen_process = subprocess.Popen(arguments, stdout=log, stderr=subprocess.STDOUT, env={**os.environ, "ADB": adbutils.adb_path()})
+                deadline = time.monotonic() + 20
+                while "Device display turned off" not in self.screen_log.read_text():
+                    if self.screen_process.poll() is not None:
+                        raise RuntimeError("scrcpy 息屏控制启动失败：" + self.screen_log.read_text())
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("scrcpy 未在 20 秒内完成息屏")
+                    time.sleep(0.05)
             running = adb_device.shell2(["pidof", "li.songe.gkd"], timeout=5)
             if running.returncode == 0:
                 self.gkd_marker.write_text(compact({"serial": serial, "restore": True}))
@@ -172,6 +186,11 @@ class AndroidTools:
     def disconnect(self):
         self.cancel()
         with self.lock:
+            if self.screen_process is not None:
+                if self.screen_process.poll() is None:
+                    self.screen_process.terminate()
+                self.screen_process.wait(timeout=10)
+                self.screen_process = None
             if self.device is not None:
                 self.device.stop_uiautomator()
             self.device = None

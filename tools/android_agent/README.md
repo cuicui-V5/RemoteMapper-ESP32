@@ -18,6 +18,8 @@ work/venv/bin/python tools/android_agent/android_tools.py init --state-dir work/
 
 将 Android SDK Platform Tools 放在 `work/deps/platform-tools`，确保 `work/deps/platform-tools/adb devices` 能看到已授权设备。使用遥控器语音时，将 `mlx-community/whisper-large-v3-turbo` 模型下载至 `work/models/whisper-large-v3-turbo`，并允许运行 Python 的终端访问麦克风。
 
+息屏任务使用 [scrcpy 5.0.1](https://github.com/Genymobile/scrcpy/releases/tag/v5.0.1)。Apple Silicon Mac 将官方 `scrcpy-macos-aarch64-v5.0.1.tar.gz` 解压至 `work/deps/scrcpy`，然后执行 `export PATH="$PWD/work/deps/scrcpy:$PATH"`。该压缩包的 SHA-256 为 `33611e51977a8289e2e124b220f727895181ef2eb9060e0987a4dc2db9cf0d6b`。
+
 固件构建：
 
 ```sh
@@ -41,7 +43,7 @@ work/venv/bin/python tools/android_agent/android_agent.py \
 
 这个入口自动启动本地工具服务、连接手机、获取模型决策、执行操作、验证结果并释放连接。任务未完成时会报错，操作记录保存在 `--output` 指定的文件中。
 
-Android 16 手机可以加上 `--screen-off`，通过 `cmd display power-off 0` 关闭物理屏幕后操作。启动时手机需要已经解锁；密码锁定时接口返回 423，并停止界面读取和操作。息屏任务禁止调整音量、播放媒体和打开最近使用的应用。
+Android 16 手机可以加上 `--screen-off`，由 scrcpy 控制物理显示电源，并关闭视频、音频和剪贴板同步。启动时手机需要已经解锁；密码锁定时接口返回 423，并停止界面读取和操作。息屏任务禁止调整音量、播放媒体和打开最近使用的应用。任务期间临时保持 USB 供电下的系统运行，结束时保持系统息屏并恢复原来的保持唤醒设置。
 
 模型通过当前界面的控件编号选择操作，再使用控件属性重新定位。文字不同、`resource_id` 相同的列表项可以分别选择。`scroll` 在所选列表内向上或向下滚动。每项决策保留此前实际观察到的界面和操作结果，单个任务最多执行 32 次决策。
 

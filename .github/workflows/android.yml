@@ -24,6 +24,13 @@ jobs:
           work/venv/bin/python -m pip install --no-cache-dir uiautomator2==3.7.1 adbutils==2.12.0 fastapi==0.162.0 uvicorn==0.54.0 httpx==0.28.1 defusedxml==0.7.1 pydantic==2.14.2
       - name: 启用虚拟机加速
         run: sudo chmod 666 /dev/kvm
+      - name: 安装 scrcpy 息屏控制
+        run: |
+          mkdir -p work/scrcpy
+          curl -fL https://github.com/Genymobile/scrcpy/releases/download/v5.0.1/scrcpy-linux-x86_64-v5.0.1.tar.gz -o work/scrcpy.tar.gz
+          echo '9f969d30cc574816077edecda65719c1c70b0aee1df1ba5fa00779ac07b8fd6e  work/scrcpy.tar.gz' | sha256sum -c -
+          tar -xzf work/scrcpy.tar.gz -C work/scrcpy --strip-components=1
+          echo "$GITHUB_WORKSPACE/work/scrcpy" >> "$GITHUB_PATH"
       - name: 在 Android 16 上运行息屏和界面操作验证
         uses: reactivecircus/android-emulator-runner@4c44018e59b437e86cdfc41da381398f93ed8808
         with:
