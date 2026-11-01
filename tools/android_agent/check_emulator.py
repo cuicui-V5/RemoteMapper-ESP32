@@ -56,6 +56,9 @@ async def check(args):
         assert all(node["package"] == "com.android.settings" for node in before["nodes"])
         denied = await phone.client.post("/v1/actions", json={"operation_id": str(uuid4()), "generation": before["generation"], "observation_id": before["observation_id"], "operation": "app_start", "package": "com.android.systemui"})
         assert denied.status_code == 403
+        for key in ("recent", "volume_up", "volume_down", "play_pause"):
+            denied = await phone.client.post("/v1/actions", json={"operation_id": str(uuid4()), "generation": before["generation"], "observation_id": before["observation_id"], "operation": "press", "key": key})
+            assert denied.status_code == 403, (key, denied.text)
         await phone.execute(decision("press", key="back"), before, ["com.android.settings"])
         before = await phone.observe()
         await phone.execute(decision("press", key="home"), before, ["com.android.settings"])
@@ -67,7 +70,15 @@ async def check(args):
         power = await asyncio.to_thread(adb_device.shell2, ["dumpsys", "display"], timeout=5)
         assert power.returncode == 0
         assert "mState=OFF" in power.output and "mCommittedState=OFF" in power.output
-        print(json.dumps({"same_resource_id_selection": "passed", "scroll": "passed", "package_filter": "passed", "unauthorized_app": "rejected", "launcher_content": "empty", "screen_off_operations": "passed"}, ensure_ascii=False), flush=True)
+        pin = await asyncio.to_thread(adb_device.shell2, ["locksettings", "set-pin", "486217"], timeout=5)
+        assert pin.returncode == 0, pin.output
+        sleep = await asyncio.to_thread(adb_device.shell2, ["input", "keyevent", "KEYCODE_SLEEP"], timeout=5)
+        assert sleep.returncode == 0
+        locked = await phone.client.get("/v1/observe")
+        assert locked.status_code == 423, locked.text
+        reconnect = await phone.client.post("/v1/connect", json={"serial": args.serial, "allowed_packages": ["com.android.settings"], "screen_off": True})
+        assert reconnect.status_code == 423, reconnect.text
+        print(json.dumps({"same_resource_id_selection": "passed", "scroll": "passed", "package_filter": "passed", "unauthorized_app": "rejected", "launcher_content": "empty", "screen_off_operations": "passed", "quiet_keys": "rejected", "locked_observation": "rejected", "locked_connection": "rejected"}, ensure_ascii=False), flush=True)
     finally:
         try:
             await phone.request("POST", "/v1/disconnect", {})
