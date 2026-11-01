@@ -60,10 +60,16 @@ extern "C" {
 // ==========================================
 // 4. Default Keymap & Hotkey Codes
 // ==========================================
-// Default Voice Input Hotkey: Right Alt + Comma (WeChat Voice IME)
-// HID Keyboard Modifiers: 0x01=LCTRL, 0x02=LSHIFT, 0x04=LALT, 0x08=LGUI, 0x10=RCTRL, 0x20=RSHIFT, 0x40=RALT, 0x80=RGUI
-#define DEFAULT_VOICE_MODIFIER    0x40      // KEY_MOD_RALT
-#define DEFAULT_VOICE_KEY         0x36      // HID Usage for Comma ','
+#ifdef REMOTEMAPPER_MACOS
+// 微信输入法使用左 Control、左 Option 和 V，按下和释放分别触发一次。
+#define DEFAULT_VOICE_MODIFIER    0x05
+#define DEFAULT_VOICE_KEY         0x19
+#define DEFAULT_VOICE_ACTION      ACTION_VOICE_TOGGLE
+#else
+#define DEFAULT_VOICE_MODIFIER    0x40
+#define DEFAULT_VOICE_KEY         0x36
+#define DEFAULT_VOICE_ACTION      ACTION_VOICE_HOLD
+#endif
 
 // ==========================================
 // 5. Wi-Fi Power Management

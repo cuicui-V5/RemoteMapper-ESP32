@@ -132,6 +132,8 @@
 
 ## 🛠️ 进阶：源码自主编译与开发
 
+Waveshare ESP32-S3-Zero-N8R8 的 Mac 遥控鼠标、语音输入和 Android 自主任务使用方式见 [Mac 遥控鼠标与 Android Agent](tools/android_agent/README.md)。
+
 如果您需要深度二次开发（如扩展协议栈、修改 BLE 广播过滤、重定向引脚），可使用 PlatformIO 进行编译：
 
 ```bash

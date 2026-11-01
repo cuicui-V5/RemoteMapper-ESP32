@@ -5,6 +5,17 @@
 #include "ble/ble_remote_client.h"
 #include "audio/audio_pipeline.h"
 #include "keymap/key_state_machine.h"
+#include "keymap/key_config_storage.h"
+#include "usb/usb_composite.h"
+#include "usb/uac_microphone.h"
+#include "agent/remote_events.h"
+#include "agent/controller.h"
+#include "keymap/mac_pointer.h"
+#ifdef REMOTEMAPPER_MACOS
+#include "iso_diagnostics.h"
+#endif
+#include "tusb.h"
+#include "esp_system.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <ctype.h>
@@ -17,6 +28,7 @@ extern USBCDC USBSerial;
 extern key_mapper_engine_t g_key_engine;
 
 static String s_input_buffer = "";
+static bool s_discard_line = false;
 
 static void handle_command(const String& line);
 
@@ -31,14 +43,18 @@ static void cli_write_line(const String& line) {
 
 static void cli_feed_char(char c) {
     if (c == '\r' || c == '\n') {
-        if (s_input_buffer.length() > 0) {
+        if (s_discard_line) {
+            s_discard_line = false;
+            cli_write_line("{\"error\":\"command_too_large\"}");
+        } else if (s_input_buffer.length() > 0) {
             handle_command(s_input_buffer);
             s_input_buffer = "";
         }
-    } else {
+    } else if (!s_discard_line) {
         s_input_buffer += c;
-        if (s_input_buffer.length() > 250) {
+        if (s_input_buffer.length() > 8192) {
             s_input_buffer = "";
+            s_discard_line = true;
         }
     }
 }
@@ -198,6 +214,67 @@ static void handle_command(const String& line) {
         return;
     }
 
+    if (head.equalsIgnoreCase("events")) {
+        cli_write_line(remote_events_command(tail));
+        return;
+    }
+
+    if (head.equalsIgnoreCase("agent")) {
+        cli_write_line(agent_controller_command(tail));
+        return;
+    }
+
+    if (cmd.equalsIgnoreCase("keymap")) {
+        cli_write_line(key_config_to_json(&g_key_engine));
+        return;
+    }
+
+#ifdef REMOTEMAPPER_MACOS
+    if (cmd.equalsIgnoreCase("pointer")) {
+        cli_write_line(mac_pointer_status());
+        return;
+    }
+    if (cmd.equalsIgnoreCase("usb_diag")) {
+        remotemapper_dwc2_diagnostics_t state = {};
+        remotemapper_dwc2_diagnostics(&state);
+        JsonDocument doc;
+        doc["daint"] = state.daint;
+        doc["daintmsk"] = state.daintmsk;
+        doc["diepempmsk"] = state.diepempmsk;
+        JsonArray endpoints = doc["in_endpoints"].to<JsonArray>();
+        for (uint8_t i = 0; i < state.endpoint_count; i++) {
+            JsonObject endpoint = endpoints.add<JsonObject>();
+            endpoint["number"] = i;
+            endpoint["ctl"] = state.ctl[i];
+            endpoint["interrupt"] = state.interrupt[i];
+            endpoint["transfer_size"] = state.transfer_size[i];
+            endpoint["max_size"] = state.max_size[i];
+        }
+        String out;
+        serializeJson(doc, out);
+        cli_write_line(out);
+        return;
+    }
+#endif
+
+    if (head.equalsIgnoreCase("hid")) {
+        if (tail == "voice") {
+            bool sent = usb_hid_keyboard_tap(DEFAULT_VOICE_MODIFIER, DEFAULT_VOICE_KEY);
+            cli_write_line(sent ? "{\"hid_sent\":true}" : "{\"hid_sent\":false}");
+            return;
+        }
+        uint16_t usage;
+        if (tail == "volume_up") usage = 0xE9;
+        else if (tail == "volume_down") usage = 0xEA;
+        else {
+            cli_write_line("{\"error\":\"invalid_hid_command\"}");
+            return;
+        }
+        bool sent = usb_hid_consumer_tap(usage);
+        cli_write_line(sent ? "{\"hid_sent\":true}" : "{\"hid_sent\":false}");
+        return;
+    }
+
     if (cmd.equalsIgnoreCase("status") || cmd.equalsIgnoreCase("info")) {
         JsonDocument doc;
         doc["firmware"] = FIRMWARE_NAME;
@@ -210,6 +287,22 @@ static void handle_command(const String& line) {
         doc["free_heap"] = ESP.getFreeHeap();
         doc["free_psram"] = ESP.getFreePsram();
         doc["wifi_enabled"] = wifi_manager_get_enabled();
+        doc["usb_mounted"] = tud_mounted();
+        doc["usb_suspended"] = tud_suspended();
+        doc["uac_streaming"] = uac_microphone_is_streaming();
+        doc["uac_transfers"] = uac_microphone_transfer_count();
+        doc["uac_failed"] = uac_microphone_failure_count();
+#ifdef REMOTEMAPPER_MACOS
+        doc["iso_incomplete"] = remotemapper_dwc2_iso_incomplete_count();
+        doc["iso_retry"] = remotemapper_dwc2_iso_retry_count();
+        doc["iso_failed"] = remotemapper_dwc2_iso_failed_count();
+#endif
+        doc["consumer_sent"] = usb_hid_consumer_sent();
+        doc["consumer_failed"] = usb_hid_consumer_failed();
+        doc["keyboard_sent"] = usb_hid_keyboard_sent();
+        doc["keyboard_failed"] = usb_hid_keyboard_failed();
+        doc["hid_ready"] = tud_hid_n_ready(0);
+        doc["reset_reason"] = (int)esp_reset_reason();
 
         String out;
         serializeJson(doc, out);
@@ -226,6 +319,9 @@ static void handle_command(const String& line) {
     else if (cmd.equalsIgnoreCase("help")) {
         cli_write_line("Commands:");
         cli_write_line("  status        - Display system info & runtime statistics (JSON)");
+        cli_write_line("  keymap        - Read current key bindings (JSON)");
+        cli_write_line("  events [JSON] - Read or acknowledge remote events; {\"begin\":true} starts a stream");
+        cli_write_line("  hid volume_up|volume_down|voice - Send one USB hotkey press and release");
         cli_write_line("  reconnect     - Trigger BLE remote re-scan");
         cli_write_line("  reset_keys    - Reset key bindings to factory defaults");
         cli_write_line("  wifi on|off   - Enable/disable the whole Wi-Fi radio (persisted, reboots)");

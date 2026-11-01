@@ -2,6 +2,7 @@
 .vscode
 .idea
 .venv
+work/
 *.pyc
 __pycache__/
 build/

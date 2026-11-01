@@ -1,11 +1,12 @@
 #include "led_indicator.h"
 #include <Arduino.h>
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
-#ifndef RGB_BUILTIN
-#define RGB_BUILTIN 48 // Default for most ESP32-S3 boards if not defined
+#ifndef REMOTEMAPPER_RGB_PIN
+#define REMOTEMAPPER_RGB_PIN RGB_BUILTIN
 #endif
 
 static led_state_t s_current_base_state = LED_STATE_WAIT_CONNECTION;
@@ -16,13 +17,19 @@ static bool s_is_flashing = false;
 static uint32_t s_layer_color = 0x00FF00; // Default green for Layer 0
 static bool s_layer_flash = false;
 static bool s_low_battery = false;
+static std::atomic<uint32_t> s_agent_color{0};
 
 static void update_hardware_led(led_state_t state) {
+    uint32_t color = s_agent_color.load();
+    if (color) {
+        neopixelWrite(REMOTEMAPPER_RGB_PIN, (color >> 16) & 255, (color >> 8) & 255, color & 255);
+        return;
+    }
     if (s_layer_flash && s_is_flashing) {
         uint8_t r = (uint8_t)(((s_layer_color >> 16) & 0xFF) * 36 / 255);
         uint8_t g = (uint8_t)(((s_layer_color >> 8) & 0xFF) * 36 / 255);
         uint8_t b = (uint8_t)((s_layer_color & 0xFF) * 36 / 255);
-        neopixelWrite(RGB_BUILTIN, r, g, b);
+        neopixelWrite(REMOTEMAPPER_RGB_PIN, r, g, b);
         return;
     }
 
@@ -30,33 +37,33 @@ static void update_hardware_led(led_state_t state) {
     if (s_low_battery && state == LED_STATE_CONNECTED) {
         uint32_t phase = millis() % 2000;
         if ((phase < 120) || (phase >= 220 && phase < 340)) {
-            neopixelWrite(RGB_BUILTIN, 32, 32, 32); // Crisp White flash
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 32, 32, 32); // Crisp White flash
             return;
         }
     }
 
     switch (state) {
         case LED_STATE_WAIT_CONNECTION:
-            neopixelWrite(RGB_BUILTIN, 24, 0, 0); // Red
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 24, 0, 0); // Red
             break;
         case LED_STATE_CONNECTED: {
             uint8_t r = (uint8_t)(((s_layer_color >> 16) & 0xFF) * 20 / 255);
             uint8_t g = (uint8_t)(((s_layer_color >> 8) & 0xFF) * 20 / 255);
             uint8_t b = (uint8_t)((s_layer_color & 0xFF) * 20 / 255);
-            neopixelWrite(RGB_BUILTIN, r, g, b);
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, r, g, b);
             break;
         }
         case LED_STATE_MIC_STREAMING:
-            neopixelWrite(RGB_BUILTIN, 0, 0, 24); // Blue
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 0, 0, 24); // Blue
             break;
         case LED_STATE_HID_KEY_PRESS:
-            neopixelWrite(RGB_BUILTIN, 24, 24, 0); // Yellow
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 24, 24, 0); // Yellow
             break;
         case LED_STATE_MIC_KEY_PRESS:
-            neopixelWrite(RGB_BUILTIN, 24, 0, 0); // Red flash
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 24, 0, 0); // Red flash
             break;
         default:
-            neopixelWrite(RGB_BUILTIN, 0, 0, 0); // Off
+            neopixelWrite(REMOTEMAPPER_RGB_PIN, 0, 0, 0); // Off
             break;
     }
 }
@@ -105,5 +112,9 @@ void led_indicator_set_layer_color(uint32_t rgb_color) {
 
 void led_indicator_set_low_battery(bool is_low) {
     s_low_battery = is_low;
+}
+
+void led_indicator_agent_color(uint32_t rgb_color) {
+    s_agent_color.store(rgb_color);
 }
 

@@ -34,6 +34,8 @@ bool usb_hid_keyboard_release(void);
  * @brief Send USB HID Keyboard Tap (Press then Release)
  */
 bool usb_hid_keyboard_tap(uint8_t modifier, uint8_t keycode);
+uint32_t usb_hid_keyboard_sent(void);
+uint32_t usb_hid_keyboard_failed(void);
 
 /**
  * @brief Send USB HID Consumer Control Code (e.g. Volume Up/Down, AC Back)
@@ -49,6 +51,14 @@ bool usb_hid_consumer_release(void);
  * @brief Send USB HID Consumer Tap
  */
 bool usb_hid_consumer_tap(uint16_t usage_code);
+uint32_t usb_hid_consumer_sent(void);
+uint32_t usb_hid_consumer_failed(void);
+
+#ifdef REMOTEMAPPER_MACOS
+bool usb_hid_mouse_report(uint8_t buttons, int8_t x, int8_t y, int8_t wheel, int8_t pan);
+uint32_t usb_hid_mouse_sent(void);
+uint32_t usb_hid_mouse_failed(void);
+#endif
 
 /**
  * @brief Dispatch high-level key action to USB HID
