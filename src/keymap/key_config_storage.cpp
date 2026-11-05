@@ -1,8 +1,39 @@
 #include "key_config_storage.h"
 #include "log/app_log.h"
 #include "wol_manager.h"
+#include "net/home_assistant.h"
 #include <Preferences.h>
 #include <ArduinoJson.h>
+
+static void save_ha_entities(JsonObject obj, const char* key, uint8_t slot) {
+    JsonArray arr = obj[key].to<JsonArray>();
+    String remaining = ha_get_entity_list(slot);
+    while (remaining.length()) {
+        int sep = remaining.indexOf(';');
+        String entity = sep < 0 ? remaining : remaining.substring(0, sep);
+        entity.trim();
+        if (entity.length()) arr.add(entity);
+        if (sep < 0) break;
+        remaining = remaining.substring(sep + 1);
+    }
+}
+
+static void load_ha_entities(JsonVariant value, key_action_t* action, uint8_t slot) {
+    if (!action) return;
+    String joined;
+    if (value.is<JsonArray>()) {
+        for (JsonVariant entity : value.as<JsonArray>()) {
+            String item = entity.as<String>(); item.trim();
+            if (!item.length()) continue;
+            if (joined.length()) joined += ';';
+            joined += item;
+        }
+    } else if (!value.isNull()) {
+        joined = value.as<String>(); // legacy single-entity key
+    }
+    action->ha_slot = slot;
+    ha_set_entity_list(slot, joined);
+}
 
 void key_config_storage_init(key_mapper_engine_t *engine) {
     if (!key_config_storage_load(engine)) {
@@ -52,6 +83,7 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     wol_manager_mac_to_str(b->click_action.wol_mac, mac_buf, sizeof(mac_buf));
                     obj["click_mac"] = mac_buf;
                 }
+                if (b->click_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "click_entities", b->click_action.ha_slot);
             }
 
             // Long action
@@ -68,6 +100,7 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     wol_manager_mac_to_str(b->long_action.wol_mac, mac_buf, sizeof(mac_buf));
                     obj["long_mac"] = mac_buf;
                 }
+                if (b->long_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "long_entities", b->long_action.ha_slot);
             }
 
             // Double action
@@ -84,6 +117,7 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     wol_manager_mac_to_str(b->double_action.wol_mac, mac_buf, sizeof(mac_buf));
                     obj["double_mac"] = mac_buf;
                 }
+                if (b->double_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "double_entities", b->double_action.ha_slot);
             }
         }
     }
@@ -109,11 +143,12 @@ static uint32_t parse_u32_or_hex(JsonVariant v, uint32_t default_val = 0) {
     return default_val;
 }
 
-static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
+static void parse_bindings_array(JsonArray arr, key_layer_t *layer, uint8_t layer_idx) {
     if (!layer || arr.isNull()) return;
     layer->binding_count = 0;
     for (JsonObject obj : arr) {
         if (layer->binding_count >= MAX_KEY_BINDINGS) break;
+        uint8_t binding_idx = (uint8_t)layer->binding_count;
 
         key_binding_t b;
         memset(&b, 0, sizeof(b));
@@ -129,6 +164,8 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         if (!obj["click_mac"].isNull()) {
             wol_manager_parse_mac(obj["click_mac"].as<String>().c_str(), b.click_action.wol_mac);
         }
+        uint8_t click_slot = (uint8_t)(layer_idx * MAX_KEY_BINDINGS * 3 + binding_idx * 3);
+        load_ha_entities(obj["click_entities"].isNull() ? obj["click_entity"] : obj["click_entities"], &b.click_action, click_slot);
 
         // Normalize MI_KEY_VOICE_ALT (0x3E) to MI_KEY_VOICE (0x04)
         if (b.source_vk == MI_KEY_VOICE_ALT) {
@@ -160,6 +197,7 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         if (!obj["long_mac"].isNull()) {
             wol_manager_parse_mac(obj["long_mac"].as<String>().c_str(), b.long_action.wol_mac);
         }
+        load_ha_entities(obj["long_entities"].isNull() ? obj["long_entity"] : obj["long_entities"], &b.long_action, click_slot + 1);
 
         b.has_double = obj["has_double"] | false;
         b.double_ms = parse_u32_or_hex(obj["double_ms"], 250);
@@ -174,6 +212,7 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer) {
         if (!obj["double_mac"].isNull()) {
             wol_manager_parse_mac(obj["double_mac"].as<String>().c_str(), b.double_action.wol_mac);
         }
+        load_ha_entities(obj["double_entities"].isNull() ? obj["double_entity"] : obj["double_entities"], &b.double_action, click_slot + 2);
 
         layer->bindings[layer->binding_count++] = b;
     }
@@ -209,7 +248,7 @@ bool key_config_from_json(key_mapper_engine_t *engine, const String &json_str) {
 
             JsonArray b_arr = l_obj["bindings"].as<JsonArray>();
             if (!b_arr.isNull()) {
-                parse_bindings_array(b_arr, layer);
+                parse_bindings_array(b_arr, layer, id);
             }
         }
         app_log("KEYMAP", "Loaded multi-layer keymap from JSON (5 layers)");
@@ -218,7 +257,7 @@ bool key_config_from_json(key_mapper_engine_t *engine, const String &json_str) {
 
     // Backward compatibility: old single layer JSON with root "bindings" array
     if (doc["bindings"].is<JsonArray>()) {
-        parse_bindings_array(doc["bindings"].as<JsonArray>(), &engine->layers[0]);
+        parse_bindings_array(doc["bindings"].as<JsonArray>(), &engine->layers[0], 0);
         app_log("KEYMAP", "Migrated legacy single-layer keymap into Layer 0 (%u bindings)", 
                 (unsigned int)engine->layers[0].binding_count);
         return true;
@@ -279,6 +318,7 @@ void key_config_storage_reset_defaults(key_mapper_engine_t *engine) {
         prefs.remove("cfg_json");
         prefs.end();
     }
+    ha_clear_entity_lists();
     key_engine_load_defaults(engine);
     app_log("KEYMAP", "Reset keymap to factory defaults (%u bindings in Layer 0)", (unsigned int)engine->layers[0].binding_count);
 }
