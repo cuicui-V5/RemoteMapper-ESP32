@@ -948,10 +948,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <span>🔗 HTTP Webhook</span>
                         <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
                     </button>
-                    <button type="button" class="tab-btn" id="adv-tab-mqtt" onclick="switchAdvSubTab('mqtt')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
-                        <span>📡 MQTT 物联网</span>
-                        <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
+                    <button type="button" class="tab-btn" id="adv-tab-mqtt" onclick="switchAdvSubTab('mqtt')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
+                        <span>🏠 连接到 Home Assistant</span>
                     </button>
+                </div>
+
+                <div id="adv-panel-ha" style="display:none; background:#151d2a; border-radius:8px; padding:16px;">
+                    <div style="font-weight:700; margin-bottom:10px">连接到 Home Assistant</div>
+                    <div style="font-size:12px;color:var(--text-muted);margin-bottom:10px">输入 HA 地址（如 http://homeassistant.local:8123）和长期访问令牌。设备需与 HA 在可互通的网络中。</div>
+                    <input id="ha-url" placeholder="http://homeassistant.local:8123" style="width:100%;padding:9px;margin-bottom:8px;background:#090d16;color:#fff;border:1px solid #243247;border-radius:6px">
+                    <input id="ha-token" type="password" placeholder="长期访问令牌" style="width:100%;padding:9px;margin-bottom:8px;background:#090d16;color:#fff;border:1px solid #243247;border-radius:6px">
+                    <button type="button" class="tab-btn" onclick="saveHaConfig()">保存并测试连接</button><span id="ha-status" style="font-size:12px;margin-left:10px"></span>
+                    <hr style="border-color:#243247;margin:14px 0">
+                    <label style="display:block;font-size:12px;margin-bottom:8px">绑定灯具实体</label>
+                    <div id="ha-entities" style="display:grid;gap:7px;margin-bottom:10px"></div>
+                    <div style="display:flex;gap:8px">
+                        <input id="ha-new-entity" placeholder="light.example 或 button.example" style="flex:1;min-width:0;padding:9px;background:#090d16;color:#fff;border:1px solid #243247;border-radius:8px;font-size:13px">
+                        <button type="button" class="btn btn-outline" onclick="addHaEntity()" style="white-space:nowrap">＋ 添加</button>
+                    </div>
+                    <div id="ha-entity-hint" style="font-size:11px;color:var(--text-muted);margin-top:8px">灯具使用 light.toggle，button 实体使用 button.press。修改后请保存层级配置。</div>
                 </div>
 
                 <!-- WOL Configuration Panel -->
@@ -1183,6 +1198,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         let currentTriggerTab = 'click'; // 'click' | 'long' | 'double'
         let currentSelectedMode = 2;     // 1: Tap, 2: Hold, 4: Consumer, 7: Voice, 9: Switch Layer, 10: Transparent
         let editingBinding = null;
+        let currentAdvSubTab = 'wol';
+        let haEntitiesDraft = [];
         let clearHighlightTimer = null;
 
         const KEY_NAMES = {
@@ -1800,7 +1817,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (!editingBinding) return;
             const mod = parseHexOrDec(document.getElementById('adv-mod').value);
             const code = parseHexOrDec(document.getElementById('adv-code').value);
-            const mode = currentSelectedMode;
+            const mode = (currentSelectedMode === 17 || (currentSelectedMode === 11 && currentAdvSubTab === 'mqtt')) ? 17 : currentSelectedMode;
 
             const longToggle = document.getElementById('toggle-enable-long');
             if (longToggle) editingBinding.has_long = longToggle.checked;
@@ -1813,6 +1830,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (doubleSlider) editingBinding.double_ms = parseInt(doubleSlider.value) || 250;
 
             const wolMac = (document.getElementById('adv-wol-mac') ? document.getElementById('adv-wol-mac').value : '').trim();
+            const haEntities = haEntitiesDraft.slice();
 
             if (currentTriggerTab === 'click') {
                 editingBinding.click_type = mode;
@@ -1827,6 +1845,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.click_mac = wolMac;
                     editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
                     editingBinding.has_click = (wolMac.length >= 12);
+                } else if (mode === 17) {
+                    editingBinding.click_type = 17; editingBinding.click_entities = haEntities; editingBinding.click_entity = haEntities[0] || ''; editingBinding.has_click = haEntities.length > 0;
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.click_type = 5;
                     editingBinding.click_cons = code;
@@ -1848,6 +1868,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.long_mac = wolMac;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
+                } else if (mode === 17) {
+                    editingBinding.long_type = 17; editingBinding.long_entities = haEntities; editingBinding.long_entity = haEntities[0] || '';
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.long_cons = code;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0;
@@ -1866,6 +1888,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.double_mac = wolMac;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
+                } else if (mode === 17) {
+                    editingBinding.double_type = 17; editingBinding.double_entities = haEntities; editingBinding.double_entity = haEntities[0] || '';
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.double_cons = code;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0;
@@ -1945,6 +1969,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         function selectActionMode(mode, skipRender = false) {
+            if (mode === 17) { currentAdvSubTab = 'mqtt'; mode = 11; }
             if (mode === 4 || mode === 5) mode = 5;
             currentSelectedMode = mode;
             const inst = document.getElementById('recorder-instruction');
@@ -1979,7 +2004,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'none';
                 if (advActionBox) advActionBox.style.display = 'block';
-                switchAdvSubTab('wol');
+                switchAdvSubTab(currentAdvSubTab === 'mqtt' ? 'mqtt' : 'wol');
                 if (!skipRender) renderTriggerView(11, 0, 0, 0);
             } else {
                 if (recorderBox) recorderBox.style.display = 'block';
@@ -2059,6 +2084,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         function switchAdvSubTab(sub) {
+            currentAdvSubTab = sub;
+            if (currentSelectedMode === 11 || currentSelectedMode === 17) currentSelectedMode = sub === 'mqtt' ? 17 : 11;
             ['wol', 'macro', 'http', 'mqtt'].forEach(t => {
                 const btn = document.getElementById(`adv-tab-${t}`);
                 if (btn) {
@@ -2073,6 +2100,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             });
 
             const wolPanel = document.getElementById('adv-panel-wol');
+            const haPanel = document.getElementById('adv-panel-ha');
             const phPanel = document.getElementById('adv-panel-placeholder');
             const phIcon = document.getElementById('adv-placeholder-icon');
             const phTitle = document.getElementById('adv-placeholder-title');
@@ -2080,9 +2108,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             if (sub === 'wol') {
                 if (wolPanel) wolPanel.style.display = 'block';
+                if (haPanel) haPanel.style.display = 'none';
                 if (phPanel) phPanel.style.display = 'none';
+            } else if (sub === 'mqtt') {
+                if (wolPanel) wolPanel.style.display = 'none';
+                if (phPanel) phPanel.style.display = 'none';
+                if (haPanel) haPanel.style.display = 'block';
+                loadHaConfig();
             } else {
                 if (wolPanel) wolPanel.style.display = 'none';
+                if (haPanel) haPanel.style.display = 'none';
                 if (phPanel) {
                     phPanel.style.display = 'block';
                     if (sub === 'macro') {
@@ -2100,6 +2135,36 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     }
                 }
             }
+        }
+
+        async function loadHaConfig() {
+            try { const c=await (await fetch('/api/ha')).json(); document.getElementById('ha-url').value=c.url||''; } catch(e) {}
+            let stored=[];
+            if (editingBinding) {
+                stored=currentTriggerTab==='click'?(editingBinding.click_entities||editingBinding.click_entity||[]):currentTriggerTab==='long'?(editingBinding.long_entities||editingBinding.long_entity||[]):(editingBinding.double_entities||editingBinding.double_entity||[]);
+            }
+            haEntitiesDraft=(Array.isArray(stored)?stored:String(stored).split(';')).map(x=>String(x).trim()).filter(Boolean);
+            renderHaEntities();
+        }
+        function renderHaEntities() {
+            const host=document.getElementById('ha-entities'); if(!host) return;
+            host.innerHTML=haEntitiesDraft.map((entity,index)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#090d16;border:1px solid var(--border-color);border-radius:8px"><span style="flex:1;min-width:0;overflow-wrap:anywhere;font-family:monospace;font-size:12px;color:var(--text-main)">${escapeHaHtml(entity)}</span><button type="button" class="btn btn-outline" onclick="removeHaEntity(${index})" aria-label="移除实体" style="padding:4px 9px;color:#f87171">移除</button></div>`).join('');
+        }
+        function escapeHaHtml(value) { return String(value).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+        function addHaEntity() {
+            const input=document.getElementById('ha-new-entity'), hint=document.getElementById('ha-entity-hint');
+            const entity=(input.value||'').trim();
+            if(!/^((light|button)\.[A-Za-z0-9_]+)$/.test(entity)) { hint.innerText='请输入有效的 light.* 或 button.* 实体 ID'; hint.style.color='#f87171'; return; }
+            if(haEntitiesDraft.includes(entity)) { hint.innerText='该实体已在绑定列表中'; hint.style.color='#f59e0b'; return; }
+            haEntitiesDraft.push(entity); input.value=''; hint.innerText='已添加。修改后请保存层级配置。'; hint.style.color='var(--text-muted)'; renderHaEntities(); saveActiveTabToBinding();
+        }
+        function removeHaEntity(index) {
+            haEntitiesDraft.splice(index,1); renderHaEntities(); saveActiveTabToBinding();
+        }
+        async function saveHaConfig() {
+            const s=document.getElementById('ha-status'); s.innerText='连接中…';
+            try { const r=await fetch('/api/ha',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:document.getElementById('ha-url').value,token:document.getElementById('ha-token').value})}); const d=await r.json(); s.innerText=d.message||'连接失败'; s.style.color=r.ok?'#34d399':'#f87171'; if(r.ok) document.getElementById('ha-token').value=''; }
+            catch(e){s.innerText='请求失败：'+e.message;s.style.color='#f87171';}
         }
 
         function onWolMacChange() {
