@@ -960,7 +960,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <input id="ha-token" type="password" placeholder="长期访问令牌" style="width:100%;padding:9px;margin-bottom:8px;background:#090d16;color:#fff;border:1px solid #243247;border-radius:6px">
                     <button type="button" class="tab-btn" onclick="saveHaConfig()">保存并测试连接</button><span id="ha-status" style="font-size:12px;margin-left:10px"></span>
                     <hr style="border-color:#243247;margin:14px 0">
-                    <label style="display:block;font-size:12px;margin-bottom:8px">绑定灯具实体</label>
+                    <label style="display:block;font-size:12px;margin-bottom:8px">绑定实体（灯具 / 按钮）</label>
                     <div id="ha-entities" style="display:grid;gap:7px;margin-bottom:10px"></div>
                     <div style="display:flex;gap:8px">
                         <input id="ha-new-entity" placeholder="light.example 或 button.example" style="flex:1;min-width:0;padding:9px;background:#090d16;color:#fff;border:1px solid #243247;border-radius:8px;font-size:13px">
@@ -1458,9 +1458,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             0xC0: { source_vk: 0xC0, has_click: true, click_type: 1, click_mod: 0, click_key: 65, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 }
         };
 
-        function getActionSummaryText(type, mod, key, cons, target_layer, mac) {
+        function getActionSummaryText(type, mod, key, cons, target_layer, mac, entities) {
             if (type === 10) return '[继承默认层]';
             if (type === 11) return `[WOL唤醒: ${mac || '已配置'}]`;
+            if (type === 17) {
+                const list = Array.isArray(entities) ? entities : (entities ? String(entities).split(';').map(x => x.trim()).filter(Boolean) : []);
+                return `[HA: ${list.length ? list.join(', ') : '未配置实体'}]`;
+            }
             if (type === 9) {
                 const tgt = target_layer || 0;
                 let tgtName = tgt === 0 ? '默认层' : `层${tgt}`;
@@ -1729,13 +1733,14 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const effClickCons = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_cons : (b0 ? b0.click_cons : 0);
                 const effClickLayer = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_layer : (b0 ? b0.click_layer : 0);
                 const effClickMac = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_mac : (b0 ? b0.click_mac : '');
+                const effClickEntities = (bCur && bCur.has_click && bCur.click_type !== 10) ? (bCur.click_entities || bCur.click_entity) : (b0 ? (b0.click_entities || b0.click_entity) : []);
 
                 let desc = `【${KEY_NAMES[vk] || hex}】`;
                 if (currentEditingLayer > 0) {
                     desc += isOverride ? ` (本层覆盖)` : ` (继承默认层)`;
                 }
 
-                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer, effClickMac)}`;
+                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer, effClickMac, effClickEntities)}`;
 
                 const hasLong = (bCur && bCur.has_long && bCur.long_type !== 10) ? true : (b0 ? b0.has_long : false);
                 if (hasLong) {
@@ -1746,7 +1751,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const lLayer = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_layer : b0.long_layer;
                     const lMs = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_ms : b0.long_ms;
                     const lMac = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_mac : b0.long_mac;
-                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer, lMac)}`;
+                    const lEntities = (bCur && bCur.has_long && bCur.long_type !== 10) ? (bCur.long_entities || bCur.long_entity) : (b0.long_entities || b0.long_entity);
+                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer, lMac, lEntities)}`;
                 }
 
                 const hasDouble = (bCur && bCur.has_double && bCur.double_type !== 10) ? true : (b0 ? b0.has_double : false);
@@ -1758,7 +1764,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const dLayer = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_layer : b0.double_layer;
                     const dMs = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_ms : b0.double_ms;
                     const dMac = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_mac : b0.double_mac;
-                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer, dMac)}`;
+                    const dEntities = (bCur && bCur.has_double && bCur.double_type !== 10) ? (bCur.double_entities || bCur.double_entity) : (b0.double_entities || b0.double_entity);
+                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer, dMac, dEntities)}`;
                 }
 
                 el.title = desc;
@@ -1970,6 +1977,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         function selectActionMode(mode, skipRender = false) {
             if (mode === 17) { currentAdvSubTab = 'mqtt'; mode = 11; }
+            else if (mode === 11) { currentAdvSubTab = 'wol'; }
             if (mode === 4 || mode === 5) mode = 5;
             currentSelectedMode = mode;
             const inst = document.getElementById('recorder-instruction');
@@ -2138,13 +2146,18 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         }
 
         async function loadHaConfig() {
-            try { const c=await (await fetch('/api/ha')).json(); document.getElementById('ha-url').value=c.url||''; } catch(e) {}
             let stored=[];
             if (editingBinding) {
                 stored=currentTriggerTab==='click'?(editingBinding.click_entities||editingBinding.click_entity||[]):currentTriggerTab==='long'?(editingBinding.long_entities||editingBinding.long_entity||[]):(editingBinding.double_entities||editingBinding.double_entity||[]);
             }
             haEntitiesDraft=(Array.isArray(stored)?stored:String(stored).split(';')).map(x=>String(x).trim()).filter(Boolean);
             renderHaEntities();
+            try {
+                const c = await (await fetch('/api/ha')).json();
+                document.getElementById('ha-url').value = c.url || '';
+                const tok = document.getElementById('ha-token');
+                if (tok) tok.placeholder = c.configured ? '已保存长期令牌（留空则保持不变）' : '长期访问令牌';
+            } catch(e) {}
         }
         function renderHaEntities() {
             const host=document.getElementById('ha-entities'); if(!host) return;
@@ -2156,10 +2169,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const entity=(input.value||'').trim();
             if(!/^((light|button)\.[A-Za-z0-9_]+)$/.test(entity)) { hint.innerText='请输入有效的 light.* 或 button.* 实体 ID'; hint.style.color='#f87171'; return; }
             if(haEntitiesDraft.includes(entity)) { hint.innerText='该实体已在绑定列表中'; hint.style.color='#f59e0b'; return; }
-            haEntitiesDraft.push(entity); input.value=''; hint.innerText='已添加。修改后请保存层级配置。'; hint.style.color='var(--text-muted)'; renderHaEntities(); saveActiveTabToBinding();
+            haEntitiesDraft.push(entity); input.value=''; hint.innerText='已添加。修改后请保存层级配置。'; hint.style.color='var(--text-muted)'; renderHaEntities(); saveActiveTabToBinding(); renderTriggerView(17, 0, 0, 0);
         }
         function removeHaEntity(index) {
-            haEntitiesDraft.splice(index,1); renderHaEntities(); saveActiveTabToBinding();
+            haEntitiesDraft.splice(index,1); renderHaEntities(); saveActiveTabToBinding(); renderTriggerView(17, 0, 0, 0);
         }
         async function saveHaConfig() {
             const s=document.getElementById('ha-status'); s.innerText='连接中…';
@@ -2252,7 +2265,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 key = 0;
                 mod = 0;
                 cons = 0;
-            } else if (type === 11) {
+            } else if (type === 11 || type === 17) {
                 key = 0;
                 mod = 0;
                 cons = 0;
@@ -2260,7 +2273,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             currentSelectedMode = type;
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-            const cardId = (type === 4 || type === 5) ? 'mode-card-5' : `mode-card-${type}`;
+            const cardId = (type === 4 || type === 5) ? 'mode-card-5' : ((type === 17) ? 'mode-card-11' : `mode-card-${type}`);
             const card = document.getElementById(cardId) || document.getElementById(`mode-card-${type}`);
             if (card) card.classList.add('selected');
 
@@ -2302,6 +2315,19 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     else if (currentTriggerTab === 'double') mac = editingBinding.double_mac || '';
                 }
                 display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-orange); color:var(--accent-orange);">🌐 WOL 唤醒: ${mac || '未配置MAC'}</span>`;
+                syncQuickKeySelect(0, 0, 0);
+                return;
+            }
+
+            if (type === 17) {
+                let list = haEntitiesDraft.slice();
+                if (!list.length && editingBinding) {
+                    const stored = currentTriggerTab === 'click' ? (editingBinding.click_entities || editingBinding.click_entity || []) :
+                                   currentTriggerTab === 'long' ? (editingBinding.long_entities || editingBinding.long_entity || []) :
+                                   (editingBinding.double_entities || editingBinding.double_entity || []);
+                    list = (Array.isArray(stored) ? stored : String(stored).split(';')).map(x => String(x).trim()).filter(Boolean);
+                }
+                display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-cyan); color:var(--accent-cyan);">🏠 Home Assistant: ${list.length ? escapeHaHtml(list.join(', ')) : '未配置实体'}</span>`;
                 syncQuickKeySelect(0, 0, 0);
                 return;
             }
@@ -2488,10 +2514,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 selectActionMode(5);
                 renderTriggerView(5, 0, 0, code);
             } else if (prefix === 'm') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, 0, 0);
             } else if (prefix === 'k') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, code, 0);
             }
         }
@@ -2505,7 +2531,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 renderTriggerView(currentSelectedMode, mod, code, 0);
             } else if (currentSelectedMode === 4 || currentSelectedMode === 5 || code >= 500) {
                 renderTriggerView(5, 0, 0, code);
-            } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) {
+            } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) {
                 renderTriggerView(currentSelectedMode, 0, 0, 0);
             } else {
                 renderTriggerView(currentSelectedMode, mod, code, 0);
@@ -2526,7 +2552,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (modal.style.display !== 'flex') return;
 
             // If user is in layer switch, transparent, or advanced extension mode, ignore keypresses
-            if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11) return;
+            if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) return;
 
             // If user is typing in advanced numeric inputs, let it through
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
