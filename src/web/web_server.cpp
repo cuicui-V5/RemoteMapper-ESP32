@@ -9,6 +9,7 @@
 #include "keymap/key_config_storage.h"
 #include "nvs/nvs_manager.h"
 #include "wol_manager.h"
+#include "net/home_assistant.h"
 #include "ota/ota_manager.h"
 #include "config/config_backup.h"
 #include <WebServer.h>
@@ -291,6 +292,17 @@ static void handle_nvs_reset() {
     }
 }
 
+static void handle_ha_get() { s_server.send(200, "application/json", ha_get_config_json()); }
+static void handle_ha_save() {
+    if (!s_server.hasArg("plain")) { s_server.send(400,"application/json","{\"error\":\"missing_body\"}"); return; }
+    JsonDocument d; if (deserializeJson(d,s_server.arg("plain"))) { s_server.send(400,"application/json","{\"error\":\"invalid_json\"}"); return; }
+    String url=d["url"]|"", token=d["token"]|"";
+    if (!ha_configure(url,token)) { s_server.send(400,"application/json","{\"error\":\"invalid_config\",\"message\":\"请输入有效的 http(s) 地址和长期令牌\"}"); return; }
+    String message; bool ok=ha_test_connection(&message);
+    JsonDocument out; out["connected"]=ok; out["message"]=message; String json; serializeJson(out,json);
+    s_server.send(ok?200:502,"application/json",json);
+}
+
 static void handle_wol_test() {
     String mac = "";
     uint16_t port = 9;
@@ -447,6 +459,8 @@ void web_server_init(void) {
     s_server.on("/api/keymap/reset", HTTP_POST, handle_keymap_reset);
     s_server.on("/api/keymap/telemetry", HTTP_GET, handle_keymap_telemetry);
     s_server.on("/api/wol/test", HTTP_POST, handle_wol_test);
+    s_server.on("/api/ha", HTTP_GET, handle_ha_get);
+    s_server.on("/api/ha", HTTP_POST, handle_ha_save);
     s_server.on("/api/ble/scan", HTTP_GET, handle_ble_scan);
     s_server.on("/api/ble/connect", HTTP_POST, handle_ble_connect);
     s_server.on("/api/ble/unpair", HTTP_POST, handle_ble_unpair);

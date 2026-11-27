@@ -1,5 +1,6 @@
 #include "key_state_machine.h"
 #include "wol_manager.h"
+#include "net/ha_action.h"
 #include "app_config.h"
 #include <string.h>
 #include <freertos/FreeRTOS.h>
@@ -146,6 +147,10 @@ static void emit_action(key_mapper_engine_t *engine, const key_action_t *action,
     // Wake-on-LAN Action
     if (action->type == ACTION_WOL) {
         wol_manager_send(action->wol_mac, 9);
+        return;
+    }
+    if (action->type == ACTION_HOME_ASSISTANT) {
+        if (!ha_toggle_slot(action->ha_slot)) app_log("HA", "Toggle failed for mapping slot %u", action->ha_slot);
         return;
     }
 

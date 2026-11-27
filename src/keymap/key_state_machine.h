@@ -26,7 +26,8 @@ typedef enum {
     ACTION_ADV_HTTP = 13,           // 13: Future placeholder (HTTP Webhook)
     ACTION_ADV_MQTT = 14,           // 14: Future placeholder (MQTT Publish)
     ACTION_VOICE_TOGGLE = 15,       // 15: Trigger voice recording + tap hotkey on press & release (TypeLess / Bageshuo)
-    ACTION_VOICE_TOGGLE_RELEASE = 16// 16: End voice recording + second tap hotkey
+    ACTION_VOICE_TOGGLE_RELEASE = 16,// 16: End voice recording + second tap hotkey
+    ACTION_HOME_ASSISTANT = 17 // Toggle a configured Home Assistant entity
 } key_action_type_t;
 
 typedef struct {
@@ -36,6 +37,7 @@ typedef struct {
     uint16_t          consumer_code;// USB_CONSUMER_*
     uint8_t           target_layer; // Target layer (0 ~ 4) for ACTION_SWITCH_LAYER
     uint8_t           wol_mac[6];   // Target MAC address for ACTION_WOL
+    uint8_t           ha_slot;        // Index into the dynamic Home Assistant entity-list registry
 } key_action_t;
 
 typedef struct {
