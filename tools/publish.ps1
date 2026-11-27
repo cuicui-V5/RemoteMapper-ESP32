@@ -8,6 +8,17 @@
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
 $rootDir = Split-Path -Parent $PSScriptRoot
+Set-Location $rootDir
+
+# 解析目标 GitHub 仓库 (owner/repo)，确保无论从哪个目录运行脚本都不会发错仓库
+$ghRepo = "cuicui-V5/RemoteMapper-ESP32"
+try {
+    $originUrl = (& git -C $rootDir remote get-url origin 2>$null).Trim()
+    if ($originUrl -match 'github\.com[:/]([^/]+/[^/.]+?)(?:\.git)?$') {
+        $ghRepo = $Matches[1]
+    }
+} catch {}
+
 $flasherDir = Join-Path $rootDir "RemoteMapper-Flasher"
 $binCheckFull = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_N16R8_full.bin"
 $binCheckBoot = Join-Path $flasherDir "bin\RemoteMapper_ESP32S3_N16R8_bootloader.bin"
@@ -36,24 +47,13 @@ if ($gitCmd) {
     }
 }
 
-Write-Host "检测到 Git Commit: [$gitHash]" -ForegroundColor Magenta
+Write-Host "目标发布仓库:       [$ghRepo]" -ForegroundColor Magenta
+Write-Host "检测到 Git Commit:  [$gitHash]" -ForegroundColor Magenta
 Write-Host "构建发布时间戳:     [$gitDate]" -ForegroundColor Gray
 Write-Host "本次更新提交说明:   [$gitMsg]" -ForegroundColor Gray
 Write-Host ""
 
-# 同步写入 include/version.h，确保当前与后续构建版本号完全一致
-$versionHeader = @"
-#pragma once
-
-#define FIRMWARE_NAME       "RemoteMapper-ESP32"
-#define FIRMWARE_VERSION    "$gitHash"
-#define HARDWARE_TARGET     "ESP32-S3"
-#define AUTHOR              "RemoteMapper Project"
-"@
-Set-Content -Path (Join-Path $rootDir "include\version.h") -Value $versionHeader -Encoding UTF8
-Write-Host "[VERSION] 固件头文件版本号已自动同步为: $gitHash" -ForegroundColor Green
-
-# 生成 version.json 供网页端刷机与硬件控制台在线检测
+# 生成 version.json 供网页端刷机与硬件控制台在线检测（已加入 .gitignore，不污染 master）
 $versionJsonObj = [ordered]@{
     version = $gitHash
     commit = $gitHash
@@ -147,10 +147,10 @@ Write-Host "--------------------------------------------------------------------
 Write-Host "[2/3] 正在直传附件至 GitHub Releases (无需等待 Actions 排队)..." -ForegroundColor Cyan
 
 # 检查已有 Release，如存在先删除 Release 记录（保留 git tag）以全新上传附件
-$existingRelease = & gh release view $TagName 2>&1
+$existingRelease = & gh release view $TagName -R $ghRepo 2>&1
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "-> 检测到已有 Release [$TagName]，正在刷新附件并同步发布..." -ForegroundColor Yellow
-    & gh release delete $TagName -y 2>&1 | Out-Null
+    Write-Host "-> 检测到 [$ghRepo] 已有 Release [$TagName]，正在刷新附件并同步发布..." -ForegroundColor Yellow
+    & gh release delete $TagName -R $ghRepo -y 2>&1 | Out-Null
 }
 
 $releaseTitle = "RemoteMapper-ESP32 固件发布 ($gitHash)"
@@ -175,7 +175,7 @@ $gitMsg
 $tempNotesFile = Join-Path $env:TEMP ("remotemapper-notes-" + [System.Guid]::NewGuid().ToString().Substring(0,8) + ".md")
 [System.IO.File]::WriteAllText($tempNotesFile, $releaseNotes, [System.Text.Encoding]::UTF8)
 
-& gh release create $TagName $sevenZipFile $zipFile --title $releaseTitle --notes-file $tempNotesFile
+& gh release create $TagName $sevenZipFile $zipFile -R $ghRepo --title $releaseTitle --notes-file $tempNotesFile
 if (Test-Path -LiteralPath $tempNotesFile) { Remove-Item $tempNotesFile -Force -ErrorAction SilentlyContinue }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] 上传至 GitHub Releases 失败，请检查网络或权限！" -ForegroundColor Red

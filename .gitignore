@@ -25,3 +25,7 @@ RemoteMapper-Flasher/bin/
 !RemoteMapper-Flasher/tools/*.exe
 !RemoteMapper-Flasher/tools/*.bin
 !tools/boot_app0.bin
+
+# Generated web-flasher deployment metadata
+web-flasher/version.json
+web-flasher/firmware/

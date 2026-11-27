@@ -1,7 +1,0 @@
-﻿{
-    "version":  "604be0b",
-    "commit":  "604be0b",
-    "commit_date":  "2026-11-28 00:08:44",
-    "commit_message":  "docs: record USB reconnect fix in README.md",
-    "flash_url":  "https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html"
-}
