@@ -10,6 +10,7 @@
 #include "nvs/nvs_manager.h"
 #include "wol_manager.h"
 #include "net/home_assistant.h"
+#include "led_indicator.h"
 #include "ota/ota_manager.h"
 #include "config/config_backup.h"
 #include <WebServer.h>
@@ -293,6 +294,38 @@ static void handle_nvs_reset() {
 }
 
 static void handle_ha_get() { s_server.send(200, "application/json", ha_get_config_json()); }
+
+static void handle_led_get() {
+    JsonDocument doc;
+    doc["brightness"] = led_indicator_get_brightness();
+    String out;
+    serializeJson(doc, out);
+    s_server.send(200, "application/json", out);
+}
+
+static void handle_led_set() {
+    if (!s_server.hasArg("plain")) {
+        s_server.send(400, "application/json", "{\"error\":\"missing_body\"}");
+        return;
+    }
+    JsonDocument doc;
+    if (deserializeJson(doc, s_server.arg("plain")) || doc["brightness"].isNull()) {
+        s_server.send(400, "application/json", "{\"error\":\"invalid_payload\"}");
+        return;
+    }
+    int b = doc["brightness"] | -1;
+    if (b < 0 || b > 100) {
+        s_server.send(400, "application/json", "{\"error\":\"invalid_brightness\"}");
+        return;
+    }
+    led_indicator_set_brightness((uint8_t)b);
+    JsonDocument out;
+    out["status"] = "ok";
+    out["brightness"] = led_indicator_get_brightness();
+    String json;
+    serializeJson(out, json);
+    s_server.send(200, "application/json", json);
+}
 static void handle_ha_save() {
     if (!s_server.hasArg("plain")) { s_server.send(400,"application/json","{\"error\":\"missing_body\"}"); return; }
     JsonDocument d; if (deserializeJson(d,s_server.arg("plain"))) { s_server.send(400,"application/json","{\"error\":\"invalid_json\"}"); return; }
@@ -461,6 +494,8 @@ void web_server_init(void) {
     s_server.on("/api/wol/test", HTTP_POST, handle_wol_test);
     s_server.on("/api/ha", HTTP_GET, handle_ha_get);
     s_server.on("/api/ha", HTTP_POST, handle_ha_save);
+    s_server.on("/api/led", HTTP_GET, handle_led_get);
+    s_server.on("/api/led", HTTP_POST, handle_led_set);
     s_server.on("/api/ble/scan", HTTP_GET, handle_ble_scan);
     s_server.on("/api/ble/connect", HTTP_POST, handle_ble_connect);
     s_server.on("/api/ble/unpair", HTTP_POST, handle_ble_unpair);

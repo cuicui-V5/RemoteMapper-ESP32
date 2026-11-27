@@ -774,6 +774,16 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
                     <div class="card">
                         <div class="card-header"><span>系统控制</span></div>
+                        <div style="margin-bottom: 18px; padding: 12px 14px; background: #090d16; border: 1px solid var(--border-color); border-radius: 10px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <span style="font-size: 13px; font-weight: 600; color: var(--text-main);">板载 RGB 灯光亮度</span>
+                                <span id="led-brightness-val" style="font-size: 13px; font-family: monospace; color: var(--accent-cyan); font-weight: 700;">100%</span>
+                            </div>
+                            <input type="range" id="led-brightness-slider" min="0" max="100" step="5" value="100"
+                                style="width: 100%; accent-color: var(--accent-cyan); cursor: pointer;"
+                                oninput="onLedBrightnessInput(this.value)" onchange="saveLedBrightness(this.value)">
+                            <div style="font-size: 11px; color: var(--text-muted); margin-top: 6px;">设为 0% 可完全关闭板载指示灯，修改后自动保存至 NVS。</div>
+                        </div>
                         <p style="font-size: 14px; color: var(--text-muted); margin-bottom: 20px;">
                             当前固件支持 UAC 1.0 USB 麦克风录音设备与标准 HID 键盘/多媒体复合注入。
                         </p>
@@ -3251,6 +3261,42 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             });
         }
 
+        function onLedBrightnessInput(val) {
+            const label = document.getElementById('led-brightness-val');
+            if (label) label.innerText = `${val}%`;
+        }
+
+        async function loadLedBrightness() {
+            try {
+                const res = await fetch('/api/led');
+                if (!res.ok) return;
+                const data = await res.json();
+                const b = (typeof data.brightness === 'number') ? data.brightness : 100;
+                const slider = document.getElementById('led-brightness-slider');
+                if (slider) slider.value = b;
+                onLedBrightnessInput(b);
+            } catch(e) {}
+        }
+
+        async function saveLedBrightness(val) {
+            const b = Math.max(0, Math.min(100, parseInt(val, 10) || 0));
+            onLedBrightnessInput(b);
+            try {
+                const res = await fetch('/api/led', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ brightness: b })
+                });
+                if (res.ok) {
+                    showToast(b === 0 ? '已关闭板载指示灯' : `板载指示灯亮度已设为 ${b}%`);
+                } else {
+                    showToast('灯光亮度保存失败', true);
+                }
+            } catch(e) {
+                showToast('请求失败: ' + e.message, true);
+            }
+        }
+
         // Periodic background pollers
         setInterval(fetchKeyTelemetry, 100);
         setInterval(fetchStatus, 3000);
@@ -3258,6 +3304,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
         loadKeymap();
         fetchStatus();
         refreshOtaStatus();
+        loadLedBrightness();
     </script>
 </body>
 </html>

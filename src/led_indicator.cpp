@@ -1,5 +1,6 @@
 #include "led_indicator.h"
 #include <Arduino.h>
+#include <Preferences.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/semphr.h>
@@ -16,12 +17,22 @@ static bool s_is_flashing = false;
 static uint32_t s_layer_color = 0x00FF00; // Default green for Layer 0
 static bool s_layer_flash = false;
 static bool s_low_battery = false;
+static volatile uint8_t s_brightness_pct = 100;
+
+static inline uint8_t scale_led(uint8_t v) {
+    return (uint8_t)(((uint16_t)v * s_brightness_pct) / 100);
+}
 
 static void update_hardware_led(led_state_t state) {
+    if (s_brightness_pct == 0) {
+        neopixelWrite(RGB_BUILTIN, 0, 0, 0);
+        return;
+    }
+
     if (s_layer_flash && s_is_flashing) {
-        uint8_t r = (uint8_t)(((s_layer_color >> 16) & 0xFF) * 36 / 255);
-        uint8_t g = (uint8_t)(((s_layer_color >> 8) & 0xFF) * 36 / 255);
-        uint8_t b = (uint8_t)((s_layer_color & 0xFF) * 36 / 255);
+        uint8_t r = scale_led((uint8_t)(((s_layer_color >> 16) & 0xFF) * 36 / 255));
+        uint8_t g = scale_led((uint8_t)(((s_layer_color >> 8) & 0xFF) * 36 / 255));
+        uint8_t b = scale_led((uint8_t)((s_layer_color & 0xFF) * 36 / 255));
         neopixelWrite(RGB_BUILTIN, r, g, b);
         return;
     }
@@ -30,30 +41,31 @@ static void update_hardware_led(led_state_t state) {
     if (s_low_battery && state == LED_STATE_CONNECTED) {
         uint32_t phase = millis() % 2000;
         if ((phase < 120) || (phase >= 220 && phase < 340)) {
-            neopixelWrite(RGB_BUILTIN, 32, 32, 32); // Crisp White flash
+            uint8_t w = scale_led(32);
+            neopixelWrite(RGB_BUILTIN, w, w, w); // Crisp White flash
             return;
         }
     }
 
     switch (state) {
         case LED_STATE_WAIT_CONNECTION:
-            neopixelWrite(RGB_BUILTIN, 24, 0, 0); // Red
+            neopixelWrite(RGB_BUILTIN, scale_led(24), 0, 0); // Red
             break;
         case LED_STATE_CONNECTED: {
-            uint8_t r = (uint8_t)(((s_layer_color >> 16) & 0xFF) * 20 / 255);
-            uint8_t g = (uint8_t)(((s_layer_color >> 8) & 0xFF) * 20 / 255);
-            uint8_t b = (uint8_t)((s_layer_color & 0xFF) * 20 / 255);
+            uint8_t r = scale_led((uint8_t)(((s_layer_color >> 16) & 0xFF) * 20 / 255));
+            uint8_t g = scale_led((uint8_t)(((s_layer_color >> 8) & 0xFF) * 20 / 255));
+            uint8_t b = scale_led((uint8_t)((s_layer_color & 0xFF) * 20 / 255));
             neopixelWrite(RGB_BUILTIN, r, g, b);
             break;
         }
         case LED_STATE_MIC_STREAMING:
-            neopixelWrite(RGB_BUILTIN, 0, 0, 24); // Blue
+            neopixelWrite(RGB_BUILTIN, 0, 0, scale_led(24)); // Blue
             break;
         case LED_STATE_HID_KEY_PRESS:
-            neopixelWrite(RGB_BUILTIN, 24, 24, 0); // Yellow
+            neopixelWrite(RGB_BUILTIN, scale_led(24), scale_led(24), 0); // Yellow
             break;
         case LED_STATE_MIC_KEY_PRESS:
-            neopixelWrite(RGB_BUILTIN, 24, 0, 0); // Red flash
+            neopixelWrite(RGB_BUILTIN, scale_led(24), 0, 0); // Red flash
             break;
         default:
             neopixelWrite(RGB_BUILTIN, 0, 0, 0); // Off
@@ -78,6 +90,12 @@ static void led_task(void *arg) {
 }
 
 void led_indicator_init(void) {
+    Preferences prefs;
+    if (prefs.begin("led_conf", true)) {
+        uint8_t pct = prefs.getUChar("brightness", 100);
+        s_brightness_pct = (pct > 100) ? 100 : pct;
+        prefs.end();
+    }
     update_hardware_led(LED_STATE_WAIT_CONNECTION);
     xTaskCreatePinnedToCore(led_task, "led_task", 2048, NULL, 1, NULL, 1);
 }
@@ -105,5 +123,20 @@ void led_indicator_set_layer_color(uint32_t rgb_color) {
 
 void led_indicator_set_low_battery(bool is_low) {
     s_low_battery = is_low;
+}
+
+void led_indicator_set_brightness(uint8_t percent) {
+    if (percent > 100) percent = 100;
+    s_brightness_pct = percent;
+    Preferences prefs;
+    if (prefs.begin("led_conf", false)) {
+        prefs.putUChar("brightness", percent);
+        prefs.end();
+    }
+    update_hardware_led(s_is_flashing ? s_flash_state : s_current_base_state);
+}
+
+uint8_t led_indicator_get_brightness(void) {
+    return s_brightness_pct;
 }
 
