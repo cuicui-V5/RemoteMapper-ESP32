@@ -1,8 +1,17 @@
 # Deploy updated binaries and web flasher to gh-pages branch
-$rootDir = "d:\tool\RemoteMapper-ESP32"
+$rootDir = Split-Path -Parent $PSScriptRoot
 $flasherDir = Join-Path $rootDir "RemoteMapper-Flasher"
 $webFlasherDir = Join-Path $rootDir "web-flasher"
 $ghPagesTempDir = Join-Path $env:TEMP ("remotemapper-ghpages-" + [System.Guid]::NewGuid().ToString().Substring(0,8))
+
+$gitHash = "unknown"
+$gitMsg = "Deploy Web Serial Flasher"
+$gitDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+try {
+    $gitHash = (& git -C $rootDir rev-parse --short HEAD).Trim()
+    $gitMsg = ((& git -C $rootDir log -1 --pretty=%B) -join "`n").Trim()
+    $gitDate = (& git -C $rootDir log -1 --pretty=%cd --date=format:"%Y-%m-%d %H:%M:%S").Trim()
+} catch {}
 
 try {
     New-Item -ItemType Directory -Path $ghPagesTempDir -Force | Out-Null
@@ -15,6 +24,16 @@ try {
 
     $firmwareDestDir = Join-Path $ghPagesTempDir "firmware"
     New-Item -ItemType Directory -Path $firmwareDestDir -Force | Out-Null
+
+    $versionJsonStr = ([ordered]@{
+        version = $gitHash
+        commit = $gitHash
+        commit_date = $gitDate
+        commit_message = $gitMsg
+        flash_url = "https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html"
+    }) | ConvertTo-Json -Depth 4
+    Set-Content -Path (Join-Path $ghPagesTempDir "version.json") -Value $versionJsonStr -Encoding UTF8
+    Set-Content -Path (Join-Path $firmwareDestDir "version.json") -Value $versionJsonStr -Encoding UTF8
 
     $models = @("N16R8", "N8R8", "N8R2", "N4R2")
     foreach ($m in $models) {
@@ -33,11 +52,11 @@ try {
     & git config user.email "github-actions[bot]@users.noreply.github.com"
     & git checkout -b gh-pages -q
     & git add .
-    & git commit -m "Deploy Web Serial Flasher with updated firmware binaries" -q
+    & git commit -m "Deploy Web Serial Flasher with firmware ($gitHash)" -q
     & git remote add origin $remoteOrigin
     & git push origin gh-pages --force
     Pop-Location
-    Write-Host "[SUCCESS] gh-pages deployed successfully!" -ForegroundColor Green
+    Write-Host "[SUCCESS] gh-pages deployed successfully! ($gitHash)" -ForegroundColor Green
 } finally {
     if (Test-Path -LiteralPath $ghPagesTempDir) {
         Remove-Item -Recurse -Force -LiteralPath $ghPagesTempDir -ErrorAction SilentlyContinue
