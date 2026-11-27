@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RemoteMapper-ESP32 | 小米蓝牙遥控器硬件级转接方案 | Xiaomi Bluetooth Remote to USB Bridge</title>
+  <meta name="description" content="基于 ESP32-S3 原生 USB OTG 的小米蓝牙遥控器 2 Pro (RC003) 硬件桥接方案。免驱动物理 UAC 1.0 麦克风 + HID 键盘 + 多媒体直通，支持网页端 Web Serial 免驱一键刷机。">
+  <meta name="keywords" content="RemoteMapper, ESP32-S3, Xiaomi Bluetooth Remote, 小米蓝牙遥控器, Web Serial, ESP32 flasher, UAC 1.0, BLE HID, 免驱麦克风, 遥控器映射, 电脑蓝牙遥控器, TinyUSB">
+  <meta name="author" content="cuicui-V5">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="zh-CN" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="en" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <link rel="alternate" hreflang="x-default" href="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <meta property="og:title" content="RemoteMapper-ESP32 | 小米蓝牙遥控器硬件级转接方案">
+  <meta property="og:description" content="基于 ESP32-S3 原生 USB OTG，将小米蓝牙遥控器转为免驱动物理麦克风与 HID 键盘，支持浏览器网页端线刷。">
+  <meta property="og:site_name" content="RemoteMapper-ESP32">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:url" content="https://cuicui-v5.github.io/RemoteMapper-ESP32/">
+  <meta name="twitter:title" content="RemoteMapper-ESP32 | Xiaomi Bluetooth Remote to USB Hardware Bridge">
+  <meta name="twitter:description" content="Turn Xiaomi Bluetooth Remote 2 Pro into a driverless UAC 1.0 Mic + HID Keyboard on Windows via ESP32-S3.">
+
+  <!-- Schema.org JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "RemoteMapper-ESP32",
+    "operatingSystem": "Windows",
+    "applicationCategory": "UtilitiesApplication",
+    "description": "Hardware intermediate bridge solution turning Xiaomi Bluetooth Remote 2 Pro into a driverless UAC 1.0 physical microphone and standard HID keyboard device.",
+    "url": "https://cuicui-v5.github.io/RemoteMapper-ESP32/",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    },
+    "author": {
+      "@type": "Person",
+      "name": "cuicui-V5",
+      "url": "https://github.com/cuicui-V5"
+    }
+  }
+  </script>
+
+  <script src="i18n.js"></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡</text></svg>">
+  <style>
+    :root {
+      --bg-dark: #070a11;
+      --bg-card: #0e1422;
+      --bg-card-hover: #131c30;
+      --card-border: #1a253c;
+      --accent-cyan: #06b6d4;
+      --accent-cyan-light: #38bdf8;
+      --accent-blue: #3b82f6;
+      --accent-green: #10b981;
+      --accent-purple: #8b5cf6;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* 顶部导航栏 */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(7, 10, 17, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--card-border);
+      padding: 0.85rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.8rem;
+      text-decoration: none;
+    }
+
+    .brand-icon {
+      font-size: 1.6rem;
+      filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.6));
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .brand-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #ffffff 30%, var(--accent-cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-tag {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--accent-cyan-light);
+    }
+
+    .nav-cta-btn {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%);
+      color: #fff !important;
+      padding: 0.5rem 1.1rem;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .nav-cta-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 18px rgba(6, 182, 212, 0.5);
+    }
+
+    /* 语言切换胶囊按钮 */
+    .lang-switcher {
+      display: inline-flex;
+      align-items: center;
+      background: rgba(14, 20, 34, 0.9);
+      border: 1px solid var(--card-border);
+      border-radius: 9999px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      line-height: 1;
+    }
+
+    .lang-btn:hover {
+      color: var(--text-main);
+    }
+
+    .lang-btn.active {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(6, 182, 212, 0.35);
+    }
+
+    .container {
+      max-width: 1160px;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Hero Section */
+    .hero-section {
+      padding: 5rem 1.5rem 4rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-bg-glow {
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 750px;
+      height: 420px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.18) 0%, rgba(59, 130, 246, 0.08) 50%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 1;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .announcement-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: var(--accent-cyan-light);
+      padding: 0.35rem 0.95rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      letter-spacing: 0.02em;
+    }
+
+    .hero-title {
+      font-size: 3rem;
+      line-height: 1.22;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      margin-bottom: 1.4rem;
+    }
+
+    .gradient-text {
+      background: linear-gradient(135deg, #38bdf8 0%, #06b6d4 50%, #3b82f6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+      margin-bottom: 2.2rem;
+      max-width: 740px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      margin-bottom: 2.5rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.98rem;
+      font-weight: 600;
+      padding: 0.8rem 1.6rem;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn-hero-primary {
+      background: linear-gradient(135deg, var(--accent-cyan) 0%, #0284c7 100%);
+      color: #fff;
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.4);
+    }
+
+    .btn-hero-primary:hover {
+      background: linear-gradient(135deg, #22d3ee 0%, #0369a1 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(6, 182, 212, 0.6);
+    }
+
+    .btn-hero-secondary {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn-hero-secondary:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--accent-cyan);
+      transform: translateY(-2px);
+    }
+
+    .highlights-row {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      margin-top: 1rem;
+    }
+
+    .highlight-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      background: rgba(14, 20, 34, 0.7);
+      border: 1px solid var(--card-border);
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+    }
+
+    .highlight-pill svg {
+      color: var(--accent-cyan);
+    }
+
+    /* 区域通用样式 */
+    .section-wrapper {
+      padding: 4.5rem 0;
+      border-top: 1px solid rgba(26, 37, 60, 0.6);
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 3rem;
+    }
+
+    .section-tag {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--accent-cyan);
+      margin-bottom: 0.5rem;
+    }
+
+    .section-title {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.8rem;
+    }
+
+    .section-subtitle {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* 痛点对比卡片 */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+    }
+
+    .comparison-card {
+      border-radius: 14px;
+      padding: 2rem;
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      position: relative;
+    }
+
+    .card-software {
+      border-color: rgba(239, 68, 68, 0.3);
+      background: linear-gradient(180deg, rgba(239, 68, 68, 0.05) 0%, rgba(14, 20, 34, 0.8) 100%);
+    }
+
+    .card-hardware {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: linear-gradient(180deg, rgba(6, 182, 212, 0.08) 0%, rgba(14, 20, 34, 0.8) 100%);
+      box-shadow: 0 10px 30px -10px rgba(6, 182, 212, 0.2);
+    }
+
+    .comparison-card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .comparison-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.2rem;
+      list-style: none;
+    }
+
+    .comparison-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.8rem;
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    .comp-icon {
+      flex-shrink: 0;
+      width: 1.4rem;
+      height: 1.4rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 0.15rem;
+      font-size: 0.8rem;
+    }
+
+    .icon-fail { background: rgba(239, 68, 68, 0.2); color: var(--accent-red); }
+    .icon-pass { background: rgba(16, 185, 129, 0.2); color: var(--accent-green); }
+
+    /* 特性矩阵 6 宫格 */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .features-grid { grid-template-columns: repeat(2, 1fr); }
+      .comparison-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 2.2rem; }
+      .navbar { padding: 0.8rem 1rem; }
+      .nav-links { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .features-grid { grid-template-columns: 1fr; }
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.6rem;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .feature-card:hover {
+      border-color: rgba(6, 182, 212, 0.5);
+      transform: translateY(-3px);
+      box-shadow: 0 12px 25px -8px rgba(0, 0, 0, 0.5);
+    }
+
+    .feature-icon-box {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      background: rgba(6, 182, 212, 0.12);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.3rem;
+      margin-bottom: 1.1rem;
+    }
+
+    .feature-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+
+    .feature-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* 架构拓扑卡片 */
+    .topology-card {
+      background: #090e19;
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 2rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      white-space: pre;
+      line-height: 1.8;
+      box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+    }
+
+    /* 刷机方式方案卡片 (3 大方法分流) */
+    .flasher-methods-grid {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 1.5rem;
+      align-items: stretch;
+    }
+
+    @media (max-width: 960px) {
+      .flasher-methods-grid { grid-template-columns: 1fr; }
+    }
+
+    .method-card {
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      transition: all 0.25s ease;
+    }
+
+    .method-card:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      transform: translateY(-3px);
+    }
+
+    .method-card.featured {
+      background: linear-gradient(180deg, rgba(6, 182, 212, 0.1) 0%, rgba(14, 20, 34, 0.95) 100%);
+      border-color: var(--accent-cyan);
+      box-shadow: 0 10px 30px -5px rgba(6, 182, 212, 0.25);
+    }
+
+    .card-badge {
+      display: inline-block;
+      align-self: flex-start;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.65rem;
+      border-radius: 9999px;
+      margin-bottom: 1rem;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-primary {
+      background: rgba(6, 182, 212, 0.2);
+      color: var(--accent-cyan-light);
+      border: 1px solid rgba(6, 182, 212, 0.5);
+    }
+
+    .badge-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      border: 1px solid var(--card-border);
+    }
+
+    .method-title {
+      font-size: 1.35rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: #fff;
+    }
+
+    .method-desc {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 1.5rem;
+    }
+
+    .method-feature-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      font-size: 0.875rem;
+      color: #cbd5e1;
+      margin-bottom: 2rem;
+      flex: 1;
+    }
+
+    .method-feature-list li {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .method-feature-list li svg {
+      color: var(--accent-cyan);
+      flex-shrink: 0;
+    }
+
+    .btn-full {
+      width: 100%;
+      text-align: center;
+    }
+
+    /* 教程时间线 */
+    .tutorial-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .tutorial-step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      display: flex;
+      gap: 1.5rem;
+      align-items: flex-start;
+      transition: all 0.2s ease;
+    }
+
+    .tutorial-step-card:hover {
+      border-color: rgba(6, 182, 212, 0.4);
+      background: var(--bg-card-hover);
+    }
+
+    .t-step-badge {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.2), rgba(59, 130, 246, 0.2));
+      border: 1px solid rgba(6, 182, 212, 0.4);
+      color: var(--accent-cyan);
+      font-weight: 800;
+      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .t-step-content { flex: 1; }
+    .t-step-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 0.4rem; color: #fff; }
+    .t-step-desc { font-size: 0.9rem; color: var(--text-muted); line-height: 1.6; }
+    .t-step-code {
+      margin-top: 0.75rem;
+      background: #070b14;
+      border: 1px solid #1a253c;
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* FAQ 卡片 */
+    .faq-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+    }
+
+    .faq-item strong {
+      color: #e2e8f0;
+      display: block;
+      margin-bottom: 0.4rem;
+      font-size: 0.95rem;
+    }
+
+    .faq-item span {
+      line-height: 1.7;
+      display: block;
+    }
+
+    /* 页脚 */
+    footer {
+      border-top: 1px solid var(--card-border);
+      padding: 3rem 1.5rem;
+      text-align: center;
+      background: #05070d;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent-cyan);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 顶部导航栏 -->
+  <nav class="navbar">
+    <a href="#" class="brand">
+      <span class="brand-icon">⚡</span>
+      <div class="brand-text">
+        <span class="brand-title">RemoteMapper-ESP32</span>
+        <span class="brand-tag" data-i18n="nav.brand_tag">硬件级蓝牙遥控器转客制化 USB 复合设备</span>
+      </div>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#comparison" data-i18n="nav.comparison">方案优势</a></li>
+      <li><a href="#features" data-i18n="nav.features">核心特性</a></li>
+      <li><a href="#topology" data-i18n="nav.topology">系统拓扑</a></li>
+      <li><a href="#flasher" data-i18n="nav.flasher">刷机方式</a></li>
+      <li><a href="#tutorial" data-i18n="nav.tutorial">使用教学</a></li>
+      <li><a href="https://github.com/cuicui-V5/RemoteMapper-ESP32" target="_blank" style="display:flex;align-items:center;gap:0.3rem;">
+        <svg height="16" width="16" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg> GitHub
+      </a></li>
+      <li>
+        <div class="lang-switcher">
+          <button class="lang-btn active" data-lang="zh-CN">中</button>
+          <button class="lang-btn" data-lang="en">EN</button>
+        </div>
+      </li>
+      <li><a href="#flasher" class="nav-cta-btn" data-i18n="nav.cta">🚀 立即使用</a></li>
+    </ul>
+  </nav>
+
+  <!-- Hero 视觉首屏 -->
+  <header class="hero-section">
+    <div class="hero-bg-glow"></div>
+    <div class="hero-content">
+      <div class="announcement-badge">
+        <span data-i18n="hero.badge">✨ 2026 全新升级 · 网页端 Web Serial 免驱一键刷机已上线</span>
+      </div>
+      <h1 class="hero-title" data-i18n-html="hero.title">
+        Windows 下小米蓝牙遥控器<br>
+        <span class="gradient-text">最佳物理级硬件桥接方案</span>
+      </h1>
+      <p class="hero-subtitle" data-i18n="hero.subtitle">
+        基于 ESP32-S3 原生 USB OTG。彻底告别 Windows 内核丢键与虚拟声卡高延迟难题，将遥控器信号直接重映射为标准免驱物理麦克风（UAC 1.0）与 HID 键盘/多媒体设备。即插即用，游戏反作弊完全免疫。
+      </p>
+      <div class="hero-actions">
+        <a href="#flasher" class="btn btn-hero-primary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+          </svg>
+          <span data-i18n="hero.btn_flasher">立刻使用 (选择刷机方式)</span>
+        </a>
+        <a href="#tutorial" class="btn btn-hero-secondary">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+          </svg>
+          <span data-i18n="hero.btn_tutorial">查看配置教学</span>
+        </a>
+        <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32" target="_blank" class="btn btn-hero-secondary">
+          <span data-i18n="hero.btn_star">⭐ Star 关注项目</span>
+        </a>
+      </div>
+
+      <div class="highlights-row">
+        <div class="highlight-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="hero.pill_uac">免驱 UAC 1.0 物理麦克风</span>
+        </div>
+        <div class="highlight-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="hero.pill_keys">13 个物理按键 100% 空口捕获</span>
+        </div>
+        <div class="highlight-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="hero.pill_macros">5 层独立宏映射 (单/双/长按)</span>
+        </div>
+        <div class="highlight-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="hero.pill_wol">局域网 WOL 远程开机</span>
+        </div>
+        <div class="highlight-pill">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="hero.pill_web">内置可视化 Web 控制台</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- 方案对比：为什么选择硬件中间人方案 -->
+    <section id="comparison" class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="comp.tag">Direct Comparison</div>
+        <h2 class="section-title" data-i18n="comp.title">告别传统纯软件方案的妥协与痛点</h2>
+        <p class="section-subtitle" data-i18n="comp.subtitle">Windows 蓝牙驱动内核层过滤机制导致纯软件 Hook 方案无法完美兼容，RemoteMapper 采用硬件物理中继方案实现真正意义上的完美适配。</p>
+      </div>
+
+      <div class="comparison-grid">
+        <!-- 传统纯软件蓝牙方案 -->
+        <div class="comparison-card card-software">
+          <div class="comparison-card-title">
+            <span style="color: var(--accent-red);">✕</span>
+            <span data-i18n="comp.sw_title">传统纯软件直连方案</span>
+          </div>
+          <ul class="comparison-list">
+            <li class="comparison-item">
+              <span class="comp-icon icon-fail">✕</span>
+              <div data-i18n-html="comp.sw_1"><strong>部分按键被系统内核丢弃</strong>：遥控器的「音量+ (0x80)」、「音量- (0x81)」、「返回 (0xF1)」被 Windows 自带蓝牙驱动（`kbdhid.sys`）过滤丢弃，应用层 Hook/AHK 完全截获不到。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-fail">✕</span>
+              <div data-i18n-html="comp.sw_2"><strong>语音依赖虚拟声卡 (VB-Cable)</strong>：私有 ATVV 压缩音频必须二次路由转存，引入明显音频延迟且经常出现声道占用或采样率不匹配。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-fail">✕</span>
+              <div data-i18n-html="comp.sw_3"><strong>安全与反作弊风险</strong>：如需过滤驱动必须强制开启 Windows 测试模式，极易触发各类竞技游戏（如瓦罗兰特、APEX、CF等）的反作弊封禁。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-fail">✕</span>
+              <div data-i18n-html="comp.sw_4"><strong>开机与睡眠唤醒无解</strong>：PC 关机或深度睡眠时蓝牙接收器关闭，无法通过遥控器进行一键开机。</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- RemoteMapper-ESP32 硬件桥接方案 -->
+        <div class="comparison-card card-hardware">
+          <div class="comparison-card-title">
+            <span style="color: var(--accent-cyan);">✓</span>
+            <span data-i18n="comp.hw_title">RemoteMapper-ESP32 硬件桥接</span>
+          </div>
+          <ul class="comparison-list">
+            <li class="comparison-item">
+              <span class="comp-icon icon-pass">✓</span>
+              <div data-i18n-html="comp.hw_1"><strong>13 个物理按键 100% 完整捕获</strong>：ESP32-S3 在空口通过 BLE 协议栈完整接收所有原始报文，彻底绕过 Windows 内核驱动过滤。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-pass">✓</span>
+              <div data-i18n-html="comp.hw_2"><strong>免驱动硬件级 USB 麦克风 (UAC 1.0)</strong>：芯片内置 IMA-ADPCM 实时流解码，电脑识别为物理麦克风，支持语音按下瞬间自动注入快捷键与按键杂音智能消隐。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-pass">✓</span>
+              <div data-i18n-html="comp.hw_3"><strong>即插即用 · 反作弊 100% 免疫</strong>：模拟标准免驱 HID 键盘与麦克风，无需在电脑端运行任何常驻后台或安装内核驱动，与原生物理外设无异。</div>
+            </li>
+            <li class="comparison-item">
+              <span class="comp-icon icon-pass">✓</span>
+              <div data-i18n-html="comp.hw_4"><strong>局域网 WOL 无线远程唤醒</strong>：关机或睡眠状态下，按下遥控器按键即可向电脑发送 Magic Packet 魔法包，实现沙发上一键无线开机。</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 核心特性矩阵 -->
+    <section id="features" class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="feat.tag">Core Features</div>
+        <h2 class="section-title" data-i18n="feat.title">专为极致桌面体验打造的核心能力</h2>
+        <p class="section-subtitle" data-i18n="feat.subtitle">从底层音频处理、多层按键状态机，到内置 Web 管理系统，每一个细节都经过精心打磨。</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon-box">🎙️</div>
+          <h3 class="feature-title" data-i18n="feat.f1_title">免驱 UAC 1.0 麦克风</h3>
+          <p class="feature-desc" data-i18n="feat.f1_desc">模拟 16kHz 16-Bit 单声道硬件级麦克风。支持按下瞬间唤起输入法快捷键，并在前段加入 150ms 杂音消隐区与 10ms 淡入平滑，彻底杜绝按键微动爆音。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🎛️</div>
+          <h3 class="feature-title" data-i18n="feat.f2_title">5 层独立宏映射系统</h3>
+          <p class="feature-desc" data-i18n="feat.f2_desc">默认层 + 4 个自定义层。每个按键均支持单击、长按（200~2000ms）与双击（100~600ms），具备穿透继承、一次性层、闲置超时自动返回与 RGB 状态指示灯。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">⚡</div>
+          <h3 class="feature-title" data-i18n="feat.f3_title">局域网远程开机 (WOL)</h3>
+          <p class="feature-desc" data-i18n="feat.f3_desc">可将任意按键（甚至长按）设置为局域网网络唤醒魔术包（Magic Packet）。无论电脑处于关机（S5）还是睡眠状态，轻按遥控器即可无线开机。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🔊</div>
+          <h3 class="feature-title" data-i18n="feat.f4_title">多媒体直通与连续长按</h3>
+          <p class="feature-desc" data-i18n="feat.f4_desc">完美支持标准 Consumer 媒体键码。音量增加/减少支持长按持续平滑调节，播放暂停、曲目切换原生响应，无需手动点按多次。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🌐</div>
+          <h3 class="feature-title" data-i18n="feat.f5_title">内置可视化 Web 控制台</h3>
+          <p class="feature-desc" data-i18n="feat.f5_desc">ESP32 固件集成 Web 服务器，自带 AP 热点（RemoteMapper-AP）与 STA 局域网接入。手机或电脑打开网页即可修改按键映射，配置存储于 NVS 掉电不丢。</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon-box">🧩</div>
+          <h3 class="feature-title" data-i18n="feat.f6_title">全系 ESP32-S3 硬件支持</h3>
+          <p class="feature-desc" data-i18n="feat.f6_desc">开箱兼容市场上主流 ESP32-S3-WROOM-1 开发板，包括 N16R8（16MB Flash/8MB PSRAM）、N8R8、N8R2、N4R2 等，刷机网页自动智能匹配。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 系统拓扑架构 -->
+    <section id="topology" class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="topo.tag">System Topology</div>
+        <h2 class="section-title" data-i18n="topo.title">纯粹而高效的硬件拓扑架构</h2>
+        <p class="section-subtitle" data-i18n="topo.subtitle">遥控器与电脑之间由 ESP32-S3 充当中转枢纽，实现蓝牙空口到 USB 复合设备的高速转换。</p>
+      </div>
+
+      <div class="topology-card">
+┌────────────────────────┐      BLE 5.0 (HOGP + ATVV)      ┌────────────────────────┐
+│                        │ ──────────────────────────────► │                        │
+│   小米蓝牙遥控器 2 Pro │                                 │     ESP32-S3           │
+│   (RC003)              │ ◄────────────────────────────── │   (Central 蓝牙主机)   │
+└────────────────────────┘                                 └───────────┬────────────┘
+                                                                       │
+                                                                       │ USB 2.0 Full-Speed
+                                                                       │ (原生 USB OTG 复合设备接口)
+                                                                       ▼
+                                                           ┌────────────────────────┐
+                                                           │   PC 宿主机 (Windows)   │
+                                                           │                        │
+                                                           │ • 标准 UAC 1.0 物理麦克风
+                                                           │ • 标准 USB HID 键盘设备
+                                                           │ • 标准 Consumer 媒体键
+                                                           └────────────────────────┘
+      </div>
+    </section>
+
+    <!-- 刷机方式选择分流中心 (点击「立刻使用」直达此处) -->
+    <section id="flasher" class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="flasher.tag">Flashing Methods</div>
+        <h2 class="section-title" data-i18n="flasher.title">选择适合您的刷机方式</h2>
+        <p class="section-subtitle" data-i18n-html="flasher.subtitle">
+          项目提供了三种不同的刷机途径，<strong>强烈推荐优先使用网页端免驱动在线刷机</strong>，打开独立网页插线即刷，15 秒完成！
+        </p>
+      </div>
+
+      <div class="flasher-methods-grid">
+        <!-- 方式一：网页端免驱在线刷机 (首选推荐) -->
+        <div class="method-card featured">
+          <span class="card-badge badge-primary" data-i18n="flasher.m1_badge">🌟 官方首选推荐 · 零环境</span>
+          <h3 class="method-title" data-i18n="flasher.m1_title">网页端免驱动在线刷机</h3>
+          <p class="method-desc" data-i18n="flasher.m1_desc">
+            直接在浏览器中通过 Web Serial 协议对开发板烧录。无需安装 Python、Git、PlatformIO 或任何驱动，插上数据线一键写入。
+          </p>
+          <ul class="method-feature-list">
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n-html="flasher.m1_f1"><strong>自动识别硬件型号</strong>：智能探测 Flash 与 PSRAM 自动匹配固件型号</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n-html="flasher.m1_f2"><strong>智能判断全新/升级</strong>：自动检测是否已刷过本项目，新板自动选全量，老用户自动保留已有 Wi-Fi 与按键配置升级</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n-html="flasher.m1_f3"><strong>超高传输速率</strong>：支持 460800 / 921600 波特率，全程仅需约 15 秒</span>
+            </li>
+          </ul>
+
+          <div style="background: rgba(6, 182, 212, 0.08); border: 1px dashed rgba(6, 182, 212, 0.35); border-radius: 8px; padding: 0.8rem; font-size: 0.8rem; color: #a5f3fc; margin-bottom: 1.5rem;" data-i18n-html="flasher.m1_tip">
+            💡 刷机前小提示：请将 Type-C 线插在开发板 <strong>USB 口</strong>，按住 <strong>BOOT</strong> 键按一下 <strong>RST</strong> 键松开，进入刷机模式后再连接。
+          </div>
+
+          <a href="flash.html" class="btn btn-hero-primary btn-full" style="font-size: 1.05rem; padding: 0.9rem;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span data-i18n="flasher.m1_btn">⚡ 打开网页端在线刷机平台</span>
+          </a>
+        </div>
+
+        <!-- 方式二：本地绿色刷机包 -->
+        <div class="method-card">
+          <span class="card-badge badge-secondary" data-i18n="flasher.m2_badge">📦 离线环境备选</span>
+          <h3 class="method-title" data-i18n="flasher.m2_title">本地绿色免安装刷机包</h3>
+          <p class="method-desc" data-i18n="flasher.m2_desc">
+            适合无网络或受限环境。下载预编译绿色工具包，双击交互向导脚本一键刷机。
+          </p>
+          <ul class="method-feature-list">
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m2_f1">内置乐鑫官方 esptool 独立执行程序</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m2_f2">全型号预编译固件（N16R8 / N8R8 / N8R2 / N4R2）</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m2_f3">全中文批处理交互向导 (`一键烧录.bat`)</span>
+            </li>
+          </ul>
+
+          <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/releases/tag/release" target="_blank" class="btn btn-hero-secondary btn-full">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span data-i18n="flasher.m2_btn">前往 GitHub Releases 下载 (.7z / .zip)</span>
+          </a>
+        </div>
+
+        <!-- 方式三：PlatformIO 源码编译 -->
+        <div class="method-card">
+          <span class="card-badge badge-secondary" data-i18n="flasher.m3_badge">💻 极客与开发者专属</span>
+          <h3 class="method-title" data-i18n="flasher.m3_title">PlatformIO 源码自主编译</h3>
+          <p class="method-desc" data-i18n="flasher.m3_desc">
+            适合二次开发者。自定义蓝牙广播过滤逻辑、按键状态机扩展与板级引脚重定向。
+          </p>
+          <ul class="method-feature-list">
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m3_f1">完整 C/C++ 源码与 PlatformIO 编译工程</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m3_f2">一键脚本编译所有型号：`build.bat all`</span>
+            </li>
+            <li>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span data-i18n="flasher.m3_f3">直接指定板型线刷：`flash.bat n16r8`</span>
+            </li>
+          </ul>
+
+          <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32" target="_blank" class="btn btn-hero-secondary btn-full">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            <span data-i18n="flasher.m3_btn">查看 GitHub 仓库源码</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- 刷机后使用教程与配置指南 -->
+    <section id="tutorial" class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="tut.tag">Step-by-Step Guide</div>
+        <h2 class="section-title" data-i18n="tut.title">刷机完成后快速上手指南</h2>
+        <p class="section-subtitle" data-i18n="tut.subtitle">仅需简单 5 步，轻松完成蓝牙遥控器配对、Wi-Fi 局域网接入与按键映射定制。</p>
+      </div>
+
+      <div class="tutorial-timeline">
+        <div class="tutorial-step-card">
+          <div class="t-step-badge">1</div>
+          <div class="t-step-content">
+            <h3 class="t-step-title" data-i18n="tut.s1_title">手动按【RST】按键重启设备</h3>
+            <p class="t-step-desc" data-i18n-html="tut.s1_desc">
+              固件写入完成后芯片仍处于 Bootloader 状态。<strong>必须按一下开发板上的物理【RST】按键</strong>（或重新拔插一次 USB 线），板载 RGB 指示灯亮起即表示已成功开机运行。
+            </p>
+          </div>
+        </div>
+
+        <div class="tutorial-step-card">
+          <div class="t-step-badge">2</div>
+          <div class="t-step-content">
+            <h3 class="t-step-title" data-i18n="tut.s2_title">连接热点 RemoteMapper-AP</h3>
+            <p class="t-step-desc" data-i18n-html="tut.s2_desc">
+              使用手机或电脑打开 Wi-Fi 列表，搜索并连接到名为 <strong><code>RemoteMapper-AP</code></strong> 的热点（全新刷机默认无密码）。
+            </p>
+          </div>
+        </div>
+
+        <div class="tutorial-step-card">
+          <div class="t-step-badge">3</div>
+          <div class="t-step-content">
+            <h3 class="t-step-title" data-i18n="tut.s3_title">打开内置 Web 控制台</h3>
+            <p class="t-step-desc" data-i18n="tut.s3_desc">
+              在手机或电脑浏览器中打开管理后台地址。整个配置流程纯网页端操作，无需下载任何 App 或驱动。
+            </p>
+            <div class="t-step-code">
+              <span>http://192.168.4.1</span>
+              <span style="font-size: 0.75rem; color: var(--text-dim);" data-i18n="tut.s3_note">可在后台「网络设置」中将设备连入家庭 Wi-Fi 局域网</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="tutorial-step-card">
+          <div class="t-step-badge">4</div>
+          <div class="t-step-content">
+            <h3 class="t-step-title" data-i18n="tut.s4_title">蓝牙遥控器一键配对</h3>
+            <p class="t-step-desc" data-i18n-html="tut.s4_desc">
+              拿起小米遥控器 2 Pro，同时按住 <strong>【主页键】+【菜单键】</strong> 持续约 3~5 秒（注意：该遥控器广播时<strong>无任何声光提示或指示灯反馈</strong>，属于正常物理特性），随后在网页后台点击「开始配对」搜索绑定。
+            </p>
+          </div>
+        </div>
+
+        <div class="tutorial-step-card">
+          <div class="t-step-badge">5</div>
+          <div class="t-step-content">
+            <h3 class="t-step-title" data-i18n="tut.s5_title">配置按键映射与语音输入联动</h3>
+            <p class="t-step-desc" data-i18n-html="tut.s5_desc">
+              ① 打开 Windows 声音设置确认输入设备列表中已出现 <code>RemoteMapper Mic</code>（<strong>无需</strong>设为系统默认设备）；② 在微信输入法或讯飞输入法设置中，将语音麦克风单独指定为 <code>RemoteMapper Mic</code>；③ 将输入法语音热键与网页控制台保持一致（出厂默认预设为 <code>右Alt + 逗号</code>）。按住遥控器语音键说话即可体验零延迟转文字！
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 常见问题与排查指南 -->
+    <section class="section-wrapper">
+      <div class="section-header">
+        <div class="section-tag" data-i18n="faq.tag">FAQ</div>
+        <h2 class="section-title" data-i18n="faq.title">常见问题与排查</h2>
+      </div>
+
+      <div class="card" style="max-width: 860px; margin: 0 auto; background: var(--bg-card); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.8rem;">
+        <div class="faq-list">
+          <div class="faq-item">
+            <strong data-i18n="faq.q1">问：点击“连接开发板”后弹出的串口列表中找不到设备，或连接提示握手超时？</strong>
+            <span data-i18n-html="faq.a1">
+              答：① 请确保连接的是开发板标有【USB】(Native USB) 的 Type-C 接口，不要插在 COM/UART 接口；<br>
+              ② 必须使用<strong>具备数据传输功能</strong>的 Type-C 数据线（纯充电线无法通信）；<br>
+              ③ <strong>手动进入 Bootloader 模式（最关键）</strong>：用手指按住开发板上的【BOOT】键不放，按一下【RST】按键后松开，最后松开【BOOT】键，然后重新点击连接。
+            </span>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faq.q2">问：烧录完成后如何让设备正常运行？</strong>
+            <span data-i18n-html="faq.a2">答：<strong>烧录完成后必须手动重启！</strong>因为绝大部分 ESP32-S3 开发板硬件设计上没有自动退出 Bootloader 的电路。因此烧录完成后请<strong>直接按一下开发板上的【RST】按键</strong>（或重新拔插一次 USB 数据线），设备即可退出刷机状态并正常开机启动。</span>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faq.q3">问：我的开发板是 N16R8 还是 N8R8，选错会怎么样？</strong>
+            <span data-i18n="faq.a3">答：网页刷机平台已实现硬件 JEDEC Flash ID 与 eFuse 自动探测！连接设备后会自动为您匹配最适型号。若 Flash 容量不匹配，系统会给出警告以防止死机。</span>
+          </div>
+          <div class="faq-item">
+            <strong data-i18n="faq.q4">问：升级固件后之前的配置和按键映射会丢失吗？</strong>
+            <span data-i18n-html="faq.a4">答：在网页刷机平台选择<strong>「保留配置升级」</strong>模式即可！该模式只会写入位于 0x10000 的固件应用程序区，完全避开 0x9000 的 NVS 存储区，您的 Wi-Fi 配置、热点密码、按键映射以及遥控器配对记录会完好无损地保留。</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="max-width: 860px; margin: 1.5rem auto 0 auto; text-align: center;">
+        <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/blob/master/TUTORIAL.md" target="_blank" class="btn btn-hero-primary" style="display: inline-flex; align-items: center; gap: 0.6rem; padding: 0.85rem 1.8rem; border-radius: 12px; font-weight: 600;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+          <span data-i18n="tut.btn_full">查看完整保姆级图文实战教程 (TUTORIAL.md)</span>
+        </a>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- 页脚 -->
+  <footer>
+    <div class="footer-links">
+      <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/blob/master/TUTORIAL.md" target="_blank" data-i18n="footer.tutorial">新手实战教程</a>
+      <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32" target="_blank" data-i18n="footer.gh">GitHub 仓库</a>
+      <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/releases" target="_blank" data-i18n="footer.rel">Releases 固件发布</a>
+      <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/issues" target="_blank" data-i18n="footer.issues">提交 Issue 反馈</a>
+      <a href="flash.html" data-i18n="footer.flasher">网页在线刷机</a>
+    </div>
+    <div data-i18n="footer.copy">
+      RemoteMapper-ESP32 &bull; 开源蓝牙遥控器转客制化键盘固件 &bull; MIT License
+    </div>
+  </footer>
+
+</body>
+</html>

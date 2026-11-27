@@ -1,0 +1,7 @@
+﻿{
+    "version":  "58c66b2",
+    "commit":  "58c66b2",
+    "commit_date":  "2026-11-28 01:38:33",
+    "commit_message":  "chore(deploy): sync version.json generation in deploy_pages.ps1",
+    "flash_url":  "https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html"
+}
