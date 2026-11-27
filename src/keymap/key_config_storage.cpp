@@ -2,6 +2,7 @@
 #include "log/app_log.h"
 #include "wol_manager.h"
 #include "net/home_assistant.h"
+#include "keymap/macro_manager.h"
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
@@ -84,6 +85,8 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     obj["click_mac"] = mac_buf;
                 }
                 if (b->click_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "click_entities", b->click_action.ha_slot);
+                if (b->click_action.type == ACTION_REPEAT_HOLD || b->click_action.type == ACTION_REPEAT_TOGGLE) obj["click_repeat_ms"] = b->click_action.repeat_interval_ms ? b->click_action.repeat_interval_ms : 100;
+                if (b->click_action.type == ACTION_ADV_MACRO) obj["click_macro"] = macro_get_script(b->click_action.macro_slot);
             }
 
             // Long action
@@ -101,6 +104,8 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     obj["long_mac"] = mac_buf;
                 }
                 if (b->long_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "long_entities", b->long_action.ha_slot);
+                if (b->long_action.type == ACTION_REPEAT_HOLD || b->long_action.type == ACTION_REPEAT_TOGGLE) obj["long_repeat_ms"] = b->long_action.repeat_interval_ms ? b->long_action.repeat_interval_ms : 100;
+                if (b->long_action.type == ACTION_ADV_MACRO) obj["long_macro"] = macro_get_script(b->long_action.macro_slot);
             }
 
             // Double action
@@ -118,6 +123,8 @@ String key_config_to_json(const key_mapper_engine_t *engine) {
                     obj["double_mac"] = mac_buf;
                 }
                 if (b->double_action.type == ACTION_HOME_ASSISTANT) save_ha_entities(obj, "double_entities", b->double_action.ha_slot);
+                if (b->double_action.type == ACTION_REPEAT_HOLD || b->double_action.type == ACTION_REPEAT_TOGGLE) obj["double_repeat_ms"] = b->double_action.repeat_interval_ms ? b->double_action.repeat_interval_ms : 100;
+                if (b->double_action.type == ACTION_ADV_MACRO) obj["double_macro"] = macro_get_script(b->double_action.macro_slot);
             }
         }
     }
@@ -166,6 +173,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer, uint8_t laye
         }
         uint8_t click_slot = (uint8_t)(layer_idx * MAX_KEY_BINDINGS * 3 + binding_idx * 3);
         load_ha_entities(obj["click_entities"].isNull() ? obj["click_entity"] : obj["click_entities"], &b.click_action, click_slot);
+        b.click_action.repeat_interval_ms = (uint16_t)parse_u32_or_hex(obj["click_repeat_ms"], 100);
+        b.click_action.macro_slot = click_slot;
+        macro_set_script(click_slot, obj["click_macro"].isNull() ? String("") : obj["click_macro"].as<String>());
 
         // Normalize MI_KEY_VOICE_ALT (0x3E) to MI_KEY_VOICE (0x04)
         if (b.source_vk == MI_KEY_VOICE_ALT) {
@@ -198,6 +208,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer, uint8_t laye
             wol_manager_parse_mac(obj["long_mac"].as<String>().c_str(), b.long_action.wol_mac);
         }
         load_ha_entities(obj["long_entities"].isNull() ? obj["long_entity"] : obj["long_entities"], &b.long_action, click_slot + 1);
+        b.long_action.repeat_interval_ms = (uint16_t)parse_u32_or_hex(obj["long_repeat_ms"], 100);
+        b.long_action.macro_slot = click_slot + 1;
+        macro_set_script(click_slot + 1, obj["long_macro"].isNull() ? String("") : obj["long_macro"].as<String>());
 
         b.has_double = obj["has_double"] | false;
         b.double_ms = parse_u32_or_hex(obj["double_ms"], 250);
@@ -213,6 +226,9 @@ static void parse_bindings_array(JsonArray arr, key_layer_t *layer, uint8_t laye
             wol_manager_parse_mac(obj["double_mac"].as<String>().c_str(), b.double_action.wol_mac);
         }
         load_ha_entities(obj["double_entities"].isNull() ? obj["double_entity"] : obj["double_entities"], &b.double_action, click_slot + 2);
+        b.double_action.repeat_interval_ms = (uint16_t)parse_u32_or_hex(obj["double_repeat_ms"], 100);
+        b.double_action.macro_slot = click_slot + 2;
+        macro_set_script(click_slot + 2, obj["double_macro"].isNull() ? String("") : obj["double_macro"].as<String>());
 
         layer->bindings[layer->binding_count++] = b;
     }
@@ -319,6 +335,7 @@ void key_config_storage_reset_defaults(key_mapper_engine_t *engine) {
         prefs.end();
     }
     ha_clear_entity_lists();
+    macro_clear_scripts();
     key_engine_load_defaults(engine);
     app_log("KEYMAP", "Reset keymap to factory defaults (%u bindings in Layer 0)", (unsigned int)engine->layers[0].binding_count);
 }

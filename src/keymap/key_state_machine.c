@@ -1,6 +1,7 @@
 #include "key_state_machine.h"
 #include "wol_manager.h"
 #include "net/ha_action.h"
+#include "keymap/macro_action.h"
 #include "app_config.h"
 #include <string.h>
 #include <freertos/FreeRTOS.h>
@@ -153,6 +154,10 @@ static void emit_action(key_mapper_engine_t *engine, const key_action_t *action,
         if (!ha_toggle_slot(action->ha_slot)) app_log("HA", "Toggle failed for mapping slot %u", action->ha_slot);
         return;
     }
+    if (action->type == ACTION_ADV_MACRO) {
+        if (!macro_trigger_slot(action->macro_slot)) app_log("MACRO", "Trigger failed for mapping slot %u", action->macro_slot);
+        return;
+    }
 
     if (engine->output_cb) {
         engine->output_cb(action);
@@ -168,6 +173,31 @@ static void emit_action(key_mapper_engine_t *engine, const key_action_t *action,
     }
 }
 
+static void emit_repeat_tap(key_mapper_engine_t *engine, const key_action_t *action, uint8_t source_vk) {
+    if (!action) return;
+    if (action->consumer_code > 0) {
+        key_action_t tap = { ACTION_CONSUMER_TAP, 0, 0, action->consumer_code, 0 };
+        emit_action(engine, &tap, source_vk, true);
+    } else if (action->key_code > 0 || action->modifier > 0) {
+        key_action_t tap = { ACTION_KEYBOARD_TAP, action->modifier, action->key_code, 0, 0 };
+        emit_action(engine, &tap, source_vk, true);
+    }
+}
+
+static uint16_t get_repeat_interval(const key_action_t *action) {
+    if (!action || action->repeat_interval_ms == 0) return 100;
+    return action->repeat_interval_ms;
+}
+
+static void toggle_slot_repeat(key_mapper_engine_t *engine, key_slot_state_t *s, const key_action_t *action, uint8_t source_vk, uint32_t now_ms) {
+    s->repeat_toggle_active = !s->repeat_toggle_active;
+    if (s->repeat_toggle_active) {
+        s->toggle_repeat_action = *action;
+        emit_repeat_tap(engine, action, source_vk);
+        s->next_toggle_repeat_ms = now_ms + get_repeat_interval(action);
+    }
+}
+
 static void emit_action_as_tap_if_hold(key_mapper_engine_t *engine, const key_action_t *action, uint8_t source_vk) {
     if (!action || action->type == ACTION_NONE || action->type == ACTION_TRANSPARENT) return;
     if (action->type == ACTION_KEYBOARD_HOLD) {
@@ -176,6 +206,8 @@ static void emit_action_as_tap_if_hold(key_mapper_engine_t *engine, const key_ac
     } else if (action->type == ACTION_CONSUMER_HOLD) {
         key_action_t tap = { ACTION_CONSUMER_TAP, 0, 0, action->consumer_code, 0 };
         emit_action(engine, &tap, source_vk, false);
+    } else if (action->type == ACTION_REPEAT_HOLD) {
+        emit_repeat_tap(engine, action, source_vk);
     } else {
         emit_action(engine, action, source_vk, false);
     }
@@ -186,8 +218,12 @@ void key_engine_switch_layer(key_mapper_engine_t *engine, uint8_t target_layer, 
     if (target_layer >= MAX_LAYERS) target_layer = 0;
     if (engine->active_layer == target_layer) return;
 
-    // Force release all active pressed keys to prevent sticky keys
+    // Force release all active pressed keys and stop active repeats to prevent stuck keys
     key_engine_release_all(engine, now_ms);
+    for (int i = 0; i < MAX_KEY_BINDINGS; i++) {
+        engine->states[i].repeat_hold_active = false;
+        engine->states[i].repeat_toggle_active = false;
+    }
 
     engine->active_layer = target_layer;
     engine->last_activity_time = now_ms;
@@ -478,14 +514,22 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                     b.click_action.type == ACTION_VOICE_HOLD ||
                     b.click_action.type == ACTION_VOICE_TOGGLE) {
                     emit_action(engine, &b.click_action, raw_key_code, true);
-                } else if (b.click_action.type == ACTION_SWITCH_LAYER || b.click_action.type == ACTION_WOL) {
+                } else if (b.click_action.type == ACTION_SWITCH_LAYER || b.click_action.type == ACTION_WOL || b.click_action.type == ACTION_ADV_MACRO) {
                     emit_action(engine, &b.click_action, raw_key_code, true);
+                } else if (b.click_action.type == ACTION_REPEAT_HOLD) {
+                    s->repeat_hold_active = true;
+                    s->hold_repeat_action = b.click_action;
+                    emit_repeat_tap(engine, &b.click_action, raw_key_code);
+                    s->next_hold_repeat_ms = now_ms + get_repeat_interval(&b.click_action);
+                } else if (b.click_action.type == ACTION_REPEAT_TOGGLE) {
+                    toggle_slot_repeat(engine, s, &b.click_action, raw_key_code, now_ms);
                 }
             }
         }
     } else {
         if (s->is_pressed) {
             s->is_pressed = false;
+            s->repeat_hold_active = false;
             s->release_timestamp = now_ms;
             uint32_t duration = now_ms - s->press_timestamp;
             engine->last_telemetry.duration_ms = duration;
@@ -504,7 +548,9 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                 } else if (b.click_action.type == ACTION_VOICE_TOGGLE) {
                     key_action_t rel = { ACTION_VOICE_TOGGLE_RELEASE, b.click_action.modifier, b.click_action.key_code, 0, 0 };
                     emit_action(engine, &rel, raw_key_code, false);
-                } else if (b.has_click && b.click_action.type != ACTION_SWITCH_LAYER && b.click_action.type != ACTION_WOL) {
+                } else if (b.has_click && b.click_action.type != ACTION_SWITCH_LAYER && b.click_action.type != ACTION_WOL &&
+                           b.click_action.type != ACTION_ADV_MACRO && b.click_action.type != ACTION_REPEAT_HOLD &&
+                           b.click_action.type != ACTION_REPEAT_TOGGLE) {
                     emit_action(engine, &b.click_action, raw_key_code, false);
                 }
             } else {
@@ -519,7 +565,11 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                     }
                 } else if (b.has_click) {
                     if (!b.has_double) {
-                        emit_action_as_tap_if_hold(engine, &b.click_action, raw_key_code);
+                        if (b.click_action.type == ACTION_REPEAT_TOGGLE) {
+                            toggle_slot_repeat(engine, s, &b.click_action, raw_key_code, now_ms);
+                        } else {
+                            emit_action_as_tap_if_hold(engine, &b.click_action, raw_key_code);
+                        }
                     } else {
                         s->press_count++;
                         if (s->press_count == 1) {
@@ -527,7 +577,11 @@ void key_engine_feed_key(key_mapper_engine_t *engine, uint8_t raw_key_code, bool
                         } else if (s->press_count >= 2) {
                             s->waiting_double = false;
                             s->press_count = 0;
-                            emit_action_as_tap_if_hold(engine, &b.double_action, raw_key_code);
+                            if (b.double_action.type == ACTION_REPEAT_TOGGLE) {
+                                toggle_slot_repeat(engine, s, &b.double_action, raw_key_code, now_ms);
+                            } else {
+                                emit_action_as_tap_if_hold(engine, &b.double_action, raw_key_code);
+                            }
                         }
                     }
                 }
@@ -559,7 +613,7 @@ void key_engine_tick(key_mapper_engine_t *engine, uint32_t now_ms) {
 
     for (int slot = 0; slot < 13; slot++) {
         key_slot_state_t *s = &engine->states[slot];
-        if (!s->is_pressed && !s->waiting_double) continue;
+        if (!s->is_pressed && !s->waiting_double && !s->repeat_toggle_active) continue;
 
         uint8_t raw_key = raw_keys[slot];
         key_binding_t b;
@@ -569,7 +623,21 @@ void key_engine_tick(key_mapper_engine_t *engine, uint32_t now_ms) {
             uint32_t hold_time = now_ms - s->press_timestamp;
             if (b.has_long && !s->long_fired && hold_time >= b.long_ms) {
                 s->long_fired = true;
-                emit_action(engine, &b.long_action, b.source_vk, true);
+                if (b.long_action.type == ACTION_REPEAT_HOLD) {
+                    s->repeat_hold_active = true;
+                    s->hold_repeat_action = b.long_action;
+                    emit_repeat_tap(engine, &b.long_action, b.source_vk);
+                    s->next_hold_repeat_ms = now_ms + get_repeat_interval(&b.long_action);
+                } else if (b.long_action.type == ACTION_REPEAT_TOGGLE) {
+                    toggle_slot_repeat(engine, s, &b.long_action, b.source_vk, now_ms);
+                } else {
+                    emit_action(engine, &b.long_action, b.source_vk, true);
+                }
+            }
+
+            if (s->repeat_hold_active && now_ms >= s->next_hold_repeat_ms) {
+                emit_repeat_tap(engine, &s->hold_repeat_action, b.source_vk);
+                s->next_hold_repeat_ms = now_ms + get_repeat_interval(&s->hold_repeat_action);
             }
 
             if (b.has_repeat && now_ms >= s->next_repeat_timestamp) {
@@ -580,8 +648,17 @@ void key_engine_tick(key_mapper_engine_t *engine, uint32_t now_ms) {
             if (s->waiting_double && (now_ms - s->release_timestamp >= b.double_ms)) {
                 s->waiting_double = false;
                 s->press_count = 0;
-                emit_action_as_tap_if_hold(engine, &b.click_action, b.source_vk);
+                if (b.click_action.type == ACTION_REPEAT_TOGGLE) {
+                    toggle_slot_repeat(engine, s, &b.click_action, b.source_vk, now_ms);
+                } else {
+                    emit_action_as_tap_if_hold(engine, &b.click_action, b.source_vk);
+                }
             }
+        }
+
+        if (s->repeat_toggle_active && now_ms >= s->next_toggle_repeat_ms) {
+            emit_repeat_tap(engine, &s->toggle_repeat_action, raw_key);
+            s->next_toggle_repeat_ms = now_ms + get_repeat_interval(&s->toggle_repeat_action);
         }
     }
     key_engine_unlock();

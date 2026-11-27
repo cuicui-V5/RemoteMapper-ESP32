@@ -27,17 +27,21 @@ typedef enum {
     ACTION_ADV_MQTT = 14,           // 14: Future placeholder (MQTT Publish)
     ACTION_VOICE_TOGGLE = 15,       // 15: Trigger voice recording + tap hotkey on press & release (TypeLess / Bageshuo)
     ACTION_VOICE_TOGGLE_RELEASE = 16,// 16: End voice recording + second tap hotkey
-    ACTION_HOME_ASSISTANT = 17 // Toggle a configured Home Assistant entity
+    ACTION_HOME_ASSISTANT = 17,     // 17: Toggle a configured Home Assistant entity
+    ACTION_REPEAT_HOLD = 18,        // 18: Hold to repeatedly tap target key/consumer
+    ACTION_REPEAT_TOGGLE = 19       // 19: Press to start/stop continuous repeat
 } key_action_type_t;
 
 typedef struct {
     key_action_type_t type;
-    uint8_t           modifier;     // USB_MOD_*
-    uint8_t           key_code;     // USB_KEY_*
-    uint16_t          consumer_code;// USB_CONSUMER_*
-    uint8_t           target_layer; // Target layer (0 ~ 4) for ACTION_SWITCH_LAYER
-    uint8_t           wol_mac[6];   // Target MAC address for ACTION_WOL
-    uint8_t           ha_slot;        // Index into the dynamic Home Assistant entity-list registry
+    uint8_t           modifier;          // USB_MOD_*
+    uint8_t           key_code;          // USB_KEY_*
+    uint16_t          consumer_code;     // USB_CONSUMER_*
+    uint8_t           target_layer;      // Target layer (0 ~ 4) for ACTION_SWITCH_LAYER
+    uint8_t           wol_mac[6];        // Target MAC address for ACTION_WOL
+    uint8_t           ha_slot;           // Index into the dynamic Home Assistant entity-list registry
+    uint16_t          repeat_interval_ms;// Repeat interval in ms for ACTION_REPEAT_*
+    uint8_t           macro_slot;        // Index into the AHK macro script registry
 } key_action_t;
 
 typedef struct {
@@ -57,13 +61,19 @@ typedef struct {
 } key_binding_t;
 
 typedef struct {
-    bool     is_pressed;
-    uint32_t press_timestamp;
-    uint32_t release_timestamp;
-    uint8_t  press_count;
-    bool     long_fired;
-    uint32_t next_repeat_timestamp;
-    bool     waiting_double;
+    bool         is_pressed;
+    uint32_t     press_timestamp;
+    uint32_t     release_timestamp;
+    uint8_t      press_count;
+    bool         long_fired;
+    uint32_t     next_repeat_timestamp;
+    bool         waiting_double;
+    bool         repeat_hold_active;
+    uint32_t     next_hold_repeat_ms;
+    key_action_t hold_repeat_action;
+    bool         repeat_toggle_active;
+    uint32_t     next_toggle_repeat_ms;
+    key_action_t toggle_repeat_action;
 } key_slot_state_t;
 
 typedef struct {

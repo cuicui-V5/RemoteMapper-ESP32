@@ -907,6 +907,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">多媒体控制</div>
                         <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">音量加减/播放暂停</div>
                     </div>
+                    <div class="mode-card" id="mode-card-18" onclick="selectActionMode(18)">
+                        <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">连击</div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">按住/切换连续触发</div>
+                    </div>
                     <div class="mode-card" id="mode-card-9" onclick="selectActionMode(9)">
                         <div class="mode-title" style="font-size:13px; font-weight:700; color:#fff;">切换按键层</div>
                         <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">切到其他功能层</div>
@@ -950,9 +954,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <button type="button" class="tab-btn active" id="adv-tab-wol" onclick="switchAdvSubTab('wol')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
                         <span>🌐 局域网唤醒 (WOL)</span>
                     </button>
-                    <button type="button" class="tab-btn" id="adv-tab-macro" onclick="switchAdvSubTab('macro')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
+                    <button type="button" class="tab-btn" id="adv-tab-macro" onclick="switchAdvSubTab('macro')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px;">
                         <span>⌨️ 按键宏序列</span>
-                        <span style="font-size: 10px; background: rgba(245, 158, 11, 0.2); color: #f59e0b; padding: 1px 6px; border-radius: 4px; border: 1px solid rgba(245, 158, 11, 0.4);">即将推出</span>
                     </button>
                     <button type="button" class="tab-btn" id="adv-tab-http" onclick="switchAdvSubTab('http')" style="padding: 6px 14px; font-size: 12px; display: flex; align-items: center; gap: 6px; opacity: 0.7;">
                         <span>🔗 HTTP Webhook</span>
@@ -977,6 +980,26 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         <button type="button" class="btn btn-outline" onclick="addHaEntity()" style="white-space:nowrap">＋ 添加</button>
                     </div>
                     <div id="ha-entity-hint" style="font-size:11px;color:var(--text-muted);margin-top:8px">灯具使用 light.toggle，button 实体使用 button.press。修改后请保存层级配置。</div>
+                </div>
+
+                <!-- AHK Macro Sequence Panel (Mode 12) -->
+                <div id="adv-panel-macro" style="display:none; background:#151d2a; border-radius:8px; padding:16px;">
+                    <div style="font-weight:700; margin-bottom:8px;">AHK 风格按键宏序列</div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-bottom:10px; line-height:1.5;">
+                        支持 AutoHotkey 常用语法：<code>^</code>=Ctrl、<code>+</code>=Shift、<code>!</code>=Alt、<code>#</code>=Win；<code>{Enter}</code>/<code>{Tab}</code>/<code>{Esc}</code>/<code>{F1~F12}</code>；<code>{Ctrl down}a{Ctrl up}</code>；<code>{Sleep 100}</code> 延时；<code>{Enter 3}</code> 重复；普通英文文本将直接按序输入。
+                    </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('^c')">^c 复制</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('^v')">^v 粘贴</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('{Enter}')">{Enter}</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('{Tab}')">{Tab}</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('{Sleep 100}')">{Sleep 100}</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('{Ctrl down}')">{Ctrl down}</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('{Ctrl up}')">{Ctrl up}</button>
+                        <button type="button" class="btn btn-outline" style="padding:4px 8px; font-size:11px;" onclick="insertMacroSnippet('#d')">#d 桌面</button>
+                    </div>
+                    <textarea id="macro-script-input" rows="4" oninput="onMacroScriptChange()" placeholder="例如: ^c{Sleep 100}!{Tab}{Sleep 150}^v{Enter}"
+                        style="width:100%; padding:10px; background:#090d16; color:#e2e8f0; border:1px solid #243247; border-radius:8px; font-family:monospace; font-size:13px; resize:vertical;"></textarea>
                 </div>
 
                 <!-- WOL Configuration Panel -->
@@ -1007,6 +1030,25 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     <div id="adv-placeholder-desc" style="font-size: 12px; color: var(--text-muted); max-width: 420px; margin: 0 auto; line-height: 1.6;">
                         此高级扩展功能已在产品规划路线图中，将在后续固件版本中逐步推送更新！
                     </div>
+                </div>
+            </div>
+
+            <!-- Repeat Config Box (Modes 18, 19) -->
+            <div id="repeat-config-box" style="display:none; background:#090d16; border:1px solid var(--border-color); border-radius:12px; padding:14px 16px; margin-bottom:14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                    <div>
+                        <div style="font-size:13px; font-weight:700; color:#fff;">连击工作模式</div>
+                        <div id="repeat-submode-desc" style="font-size:11px; color:var(--text-muted); margin-top:2px;">按住期间按设定间隔持续连发目标按键，松开立即停止</div>
+                    </div>
+                    <div style="display:flex; background:#070a10; border:1px solid #243247; border-radius:8px; padding:3px; gap:4px;">
+                        <button type="button" id="repeat-btn-hold" onclick="setRepeatSubMode(18)" style="padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:#3b82f6; color:#fff; transition:all 0.15s;">按住连发</button>
+                        <button type="button" id="repeat-btn-toggle" onclick="setRepeatSubMode(19)" style="padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; border:none; background:transparent; color:var(--text-muted); transition:all 0.15s;">切换连发</button>
+                    </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="font-size:12px; color:var(--text-muted); white-space:nowrap;">连发间隔:</span>
+                    <input type="range" id="slider-repeat-ms" min="20" max="2000" step="10" value="100" oninput="onRepeatIntervalChange(this.value)" style="flex:1;">
+                    <span id="label-repeat-ms" style="font-size:12px; font-weight:bold; color:var(--accent-cyan); width:60px;">100ms</span>
                 </div>
             </div>
 
@@ -1468,9 +1510,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             0xC0: { source_vk: 0xC0, has_click: true, click_type: 1, click_mod: 0, click_key: 65, click_cons: 0, has_long: false, long_ms: 600, long_type: 0, long_mod: 0, long_key: 0, long_cons: 0, has_double: false, double_ms: 250, double_type: 0, double_mod: 0, double_key: 0, double_cons: 0 }
         };
 
-        function getActionSummaryText(type, mod, key, cons, target_layer, mac, entities) {
+        function getActionSummaryText(type, mod, key, cons, target_layer, mac, entities, repeat_ms, macro_script) {
             if (type === 10) return '[继承默认层]';
             if (type === 11) return `[WOL唤醒: ${mac || '已配置'}]`;
+            if (type === 12) return `[AHK宏: ${macro_script ? (macro_script.length > 24 ? macro_script.slice(0, 24) + '…' : macro_script) : '未配置'}]`;
+            if (type === 12) {
+                const script = (document.getElementById('macro-script-input') ? document.getElementById('macro-script-input').value : '').trim();
+                display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-cyan); color:var(--accent-cyan);">⌨️ AHK 宏: ${script ? escapeHaHtml(script.length > 32 ? script.slice(0, 32) + '…' : script) : '未配置'}</span>`;
+                syncQuickKeySelect(0, 0, 0);
+                return;
+            }
+
             if (type === 17) {
                 const list = Array.isArray(entities) ? entities : (entities ? String(entities).split(';').map(x => x.trim()).filter(Boolean) : []);
                 return `[HA: ${list.length ? list.join(', ') : '未配置实体'}]`;
@@ -1535,6 +1585,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
             if (type === 15) {
                 return hotkeyStr ? `[语音切换: ${hotkeyStr}]` : '[语音切换]';
+            }
+            if (type === 18) {
+                return `[按住连发 ${repeat_ms || 100}ms: ${hotkeyStr || '未配置'}]`;
+            }
+            if (type === 19) {
+                return `[切换连发 ${repeat_ms || 100}ms: ${hotkeyStr || '未配置'}]`;
             }
             return hotkeyStr;
         }
@@ -1744,13 +1800,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 const effClickLayer = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_layer : (b0 ? b0.click_layer : 0);
                 const effClickMac = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_mac : (b0 ? b0.click_mac : '');
                 const effClickEntities = (bCur && bCur.has_click && bCur.click_type !== 10) ? (bCur.click_entities || bCur.click_entity) : (b0 ? (b0.click_entities || b0.click_entity) : []);
+                const effClickRepeatMs = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_repeat_ms : (b0 ? b0.click_repeat_ms : 100);
+                const effClickMacro = (bCur && bCur.has_click && bCur.click_type !== 10) ? bCur.click_macro : (b0 ? b0.click_macro : '');
 
                 let desc = `【${KEY_NAMES[vk] || hex}】`;
                 if (currentEditingLayer > 0) {
                     desc += isOverride ? ` (本层覆盖)` : ` (继承默认层)`;
                 }
 
-                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer, effClickMac, effClickEntities)}`;
+                desc += `\n单击: ${getActionSummaryText(effClickType, effClickMod, effClickKey, effClickCons, effClickLayer, effClickMac, effClickEntities, effClickRepeatMs, effClickMacro)}`;
 
                 const hasLong = (bCur && bCur.has_long && bCur.long_type !== 10) ? true : (b0 ? b0.has_long : false);
                 if (hasLong) {
@@ -1762,7 +1820,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const lMs = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_ms : b0.long_ms;
                     const lMac = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_mac : b0.long_mac;
                     const lEntities = (bCur && bCur.has_long && bCur.long_type !== 10) ? (bCur.long_entities || bCur.long_entity) : (b0.long_entities || b0.long_entity);
-                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer, lMac, lEntities)}`;
+                    const lRepeatMs = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_repeat_ms : b0.long_repeat_ms;
+                    const lMacro = (bCur && bCur.has_long && bCur.long_type !== 10) ? bCur.long_macro : b0.long_macro;
+                    desc += `\n长按(${lMs || 600}ms): ${getActionSummaryText(lType, lMod, lKey, lCons, lLayer, lMac, lEntities, lRepeatMs, lMacro)}`;
                 }
 
                 const hasDouble = (bCur && bCur.has_double && bCur.double_type !== 10) ? true : (b0 ? b0.has_double : false);
@@ -1775,7 +1835,9 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     const dMs = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_ms : b0.double_ms;
                     const dMac = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_mac : b0.double_mac;
                     const dEntities = (bCur && bCur.has_double && bCur.double_type !== 10) ? (bCur.double_entities || bCur.double_entity) : (b0.double_entities || b0.double_entity);
-                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer, dMac, dEntities)}`;
+                    const dRepeatMs = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_repeat_ms : b0.double_repeat_ms;
+                    const dMacro = (bCur && bCur.has_double && bCur.double_type !== 10) ? bCur.double_macro : b0.double_macro;
+                    desc += `\n双击(${dMs || 250}ms): ${getActionSummaryText(dType, dMod, dKey, dCons, dLayer, dMac, dEntities, dRepeatMs, dMacro)}`;
                 }
 
                 el.title = desc;
@@ -1834,7 +1896,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (!editingBinding) return;
             const mod = parseHexOrDec(document.getElementById('adv-mod').value);
             const code = parseHexOrDec(document.getElementById('adv-code').value);
-            const mode = (currentSelectedMode === 17 || (currentSelectedMode === 11 && currentAdvSubTab === 'mqtt')) ? 17 : currentSelectedMode;
+            const mode = (currentSelectedMode === 17 || (currentSelectedMode === 11 && currentAdvSubTab === 'mqtt')) ? 17 :
+                         (currentSelectedMode === 12 || (currentSelectedMode === 11 && currentAdvSubTab === 'macro')) ? 12 : currentSelectedMode;
 
             const longToggle = document.getElementById('toggle-enable-long');
             if (longToggle) editingBinding.has_long = longToggle.checked;
@@ -1848,6 +1911,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             const wolMac = (document.getElementById('adv-wol-mac') ? document.getElementById('adv-wol-mac').value : '').trim();
             const haEntities = haEntitiesDraft.slice();
+            const repeatMs = parseInt(document.getElementById('slider-repeat-ms') ? document.getElementById('slider-repeat-ms').value : '100', 10) || 100;
+            const macroScript = (document.getElementById('macro-script-input') ? document.getElementById('macro-script-input').value : '');
 
             if (currentTriggerTab === 'click') {
                 editingBinding.click_type = mode;
@@ -1862,8 +1927,20 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     editingBinding.click_mac = wolMac;
                     editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
                     editingBinding.has_click = (wolMac.length >= 12);
+                } else if (mode === 12) {
+                    editingBinding.click_type = 12; editingBinding.click_macro = macroScript;
+                    editingBinding.click_key = 0; editingBinding.click_mod = 0; editingBinding.click_cons = 0;
+                    editingBinding.has_click = macroScript.trim().length > 0;
                 } else if (mode === 17) {
                     editingBinding.click_type = 17; editingBinding.click_entities = haEntities; editingBinding.click_entity = haEntities[0] || ''; editingBinding.has_click = haEntities.length > 0;
+                } else if (mode === 18 || mode === 19) {
+                    editingBinding.click_repeat_ms = repeatMs;
+                    if (code >= 500) {
+                        editingBinding.click_cons = code; editingBinding.click_key = 0; editingBinding.click_mod = 0;
+                    } else {
+                        editingBinding.click_key = code; editingBinding.click_mod = mod; editingBinding.click_cons = 0;
+                    }
+                    editingBinding.has_click = (code > 0 || mod > 0);
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.click_type = 5;
                     editingBinding.click_cons = code;
@@ -1885,8 +1962,18 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.long_mac = wolMac;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
+                } else if (mode === 12) {
+                    editingBinding.long_type = 12; editingBinding.long_macro = macroScript;
+                    editingBinding.long_key = 0; editingBinding.long_mod = 0; editingBinding.long_cons = 0;
                 } else if (mode === 17) {
                     editingBinding.long_type = 17; editingBinding.long_entities = haEntities; editingBinding.long_entity = haEntities[0] || '';
+                } else if (mode === 18 || mode === 19) {
+                    editingBinding.long_repeat_ms = repeatMs;
+                    if (code >= 500) {
+                        editingBinding.long_cons = code; editingBinding.long_key = 0; editingBinding.long_mod = 0;
+                    } else {
+                        editingBinding.long_key = code; editingBinding.long_mod = mod; editingBinding.long_cons = 0;
+                    }
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.long_cons = code;
                     editingBinding.long_key = 0; editingBinding.long_mod = 0;
@@ -1905,8 +1992,18 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 } else if (mode === 11) {
                     editingBinding.double_mac = wolMac;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
+                } else if (mode === 12) {
+                    editingBinding.double_type = 12; editingBinding.double_macro = macroScript;
+                    editingBinding.double_key = 0; editingBinding.double_mod = 0; editingBinding.double_cons = 0;
                 } else if (mode === 17) {
                     editingBinding.double_type = 17; editingBinding.double_entities = haEntities; editingBinding.double_entity = haEntities[0] || '';
+                } else if (mode === 18 || mode === 19) {
+                    editingBinding.double_repeat_ms = repeatMs;
+                    if (code >= 500) {
+                        editingBinding.double_cons = code; editingBinding.double_key = 0; editingBinding.double_mod = 0;
+                    } else {
+                        editingBinding.double_key = code; editingBinding.double_mod = mod; editingBinding.double_cons = 0;
+                    }
                 } else if (mode === 4 || mode === 5) {
                     editingBinding.double_cons = code;
                     editingBinding.double_key = 0; editingBinding.double_mod = 0;
@@ -1927,7 +2024,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             const doubleHeader = document.getElementById('double-click-header');
             const actionLabel = document.getElementById('action-mode-label');
 
-            let mode = 2, mod = 0, key = 0, cons = 0, target_layer = 1, mac = '';
+            let mode = 2, mod = 0, key = 0, cons = 0, target_layer = 1, mac = '', repeat_ms = 100, macro_script = '';
 
             if (tab === 'click') {
                 longHeader.style.display = 'none';
@@ -1939,6 +2036,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 cons = editingBinding.click_cons || 0;
                 target_layer = editingBinding.click_layer !== undefined ? editingBinding.click_layer : (currentEditingLayer === 1 ? 0 : 1);
                 mac = editingBinding.click_mac || '';
+                repeat_ms = editingBinding.click_repeat_ms || 100;
+                macro_script = editingBinding.click_macro || '';
             } else if (tab === 'long') {
                 longHeader.style.display = 'block';
                 doubleHeader.style.display = 'none';
@@ -1952,6 +2051,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 cons = editingBinding.long_cons || 0;
                 target_layer = editingBinding.long_layer !== undefined ? editingBinding.long_layer : (currentEditingLayer === 1 ? 0 : 1);
                 mac = editingBinding.long_mac || '';
+                repeat_ms = editingBinding.long_repeat_ms || 100;
+                macro_script = editingBinding.long_macro || '';
             } else if (tab === 'double') {
                 longHeader.style.display = 'none';
                 doubleHeader.style.display = 'block';
@@ -1965,10 +2066,18 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 cons = editingBinding.double_cons || 0;
                 target_layer = editingBinding.double_layer !== undefined ? editingBinding.double_layer : (currentEditingLayer === 1 ? 0 : 1);
                 mac = editingBinding.double_mac || '';
+                repeat_ms = editingBinding.double_repeat_ms || 100;
+                macro_script = editingBinding.double_macro || '';
             }
 
             const macInput = document.getElementById('adv-wol-mac');
             if (macInput) macInput.value = mac;
+            const macroInput = document.getElementById('macro-script-input');
+            if (macroInput) macroInput.value = macro_script;
+            const repeatSlider = document.getElementById('slider-repeat-ms');
+            if (repeatSlider) repeatSlider.value = repeat_ms;
+            const repeatLabel = document.getElementById('label-repeat-ms');
+            if (repeatLabel) repeatLabel.innerText = `${repeat_ms}ms`;
 
             selectedTargetLayer = target_layer;
             selectActionMode(mode, true);
@@ -1987,23 +2096,26 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
         function selectActionMode(mode, skipRender = false) {
             if (mode === 17) { currentAdvSubTab = 'mqtt'; mode = 11; }
+            else if (mode === 12) { currentAdvSubTab = 'macro'; mode = 11; }
             else if (mode === 11) { currentAdvSubTab = 'wol'; }
             if (mode === 4 || mode === 5) mode = 5;
             currentSelectedMode = mode;
             const inst = document.getElementById('recorder-instruction');
             const quickSelect = document.getElementById('quick-key-select');
             const recorderBox = document.getElementById('key-recorder-box');
+            const repeatBox = document.getElementById('repeat-config-box');
             const advContainer = document.getElementById('adv-config-container');
             const layerBox = document.getElementById('layer-switch-config-box');
             const transBox = document.getElementById('layer-trans-config-box');
             const advActionBox = document.getElementById('adv-action-config-box');
 
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-            const cardId = (mode === 5) ? 'mode-card-5' : `mode-card-${mode}`;
+            const cardId = (mode === 5) ? 'mode-card-5' : ((mode === 18 || mode === 19) ? 'mode-card-18' : `mode-card-${mode}`);
             const card = document.getElementById(cardId) || document.getElementById(`mode-card-${mode}`);
             if (card) card.classList.add('selected');
 
             if (mode === 9) {
+                if (repeatBox) repeatBox.style.display = 'none';
                 if (recorderBox) recorderBox.style.display = 'none';
                 if (advContainer) advContainer.style.display = 'none';
                 if (layerBox) layerBox.style.display = 'block';
@@ -2011,30 +2123,40 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 if (advActionBox) advActionBox.style.display = 'none';
                 renderTargetLayerButtons();
             } else if (mode === 10) {
+                if (repeatBox) repeatBox.style.display = 'none';
                 if (recorderBox) recorderBox.style.display = 'none';
                 if (advContainer) advContainer.style.display = 'none';
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'block';
                 if (advActionBox) advActionBox.style.display = 'none';
             } else if (mode === 11) {
+                if (repeatBox) repeatBox.style.display = 'none';
                 if (recorderBox) recorderBox.style.display = 'none';
                 if (advContainer) advContainer.style.display = 'none';
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'none';
                 if (advActionBox) advActionBox.style.display = 'block';
-                switchAdvSubTab(currentAdvSubTab === 'mqtt' ? 'mqtt' : 'wol');
-                if (!skipRender) renderTriggerView(11, 0, 0, 0);
+                switchAdvSubTab(currentAdvSubTab === 'mqtt' ? 'mqtt' : (currentAdvSubTab === 'macro' ? 'macro' : 'wol'));
+                if (!skipRender) renderTriggerView(currentSelectedMode, 0, 0, 0);
             } else {
                 if (recorderBox) recorderBox.style.display = 'block';
                 if (advContainer) advContainer.style.display = 'block';
                 if (layerBox) layerBox.style.display = 'none';
                 if (transBox) transBox.style.display = 'none';
                 if (advActionBox) advActionBox.style.display = 'none';
+                if (repeatBox) repeatBox.style.display = (mode === 18 || mode === 19) ? 'block' : 'none';
 
                 let curMod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
                 let curCode = parseHexOrDec(document.getElementById('adv-code').value) || 0;
 
-                if (mode === 5 || mode === 4) {
+                if (mode === 18 || mode === 19) {
+                    setRepeatSubMode(mode, true);
+                    if (inst) inst.innerHTML = (mode === 19) ?
+                        '<b>连击（切换连发）</b>：按一下开始按设定间隔持续连发，再按一下停止。' :
+                        '<b>连击（按住连发）</b>：按住遥控器按键期间按设定间隔持续连发，松开立即停止。';
+                    if (!skipRender) renderTriggerView(mode, curMod, curCode, 0);
+                    startKeyboardRecording();
+                } else if (mode === 5 || mode === 4) {
                     if (inst) inst.innerHTML = '<b>多媒体控制</b>：控制电脑音量、播放暂停等（音量加减支持按住连续调节）';
                     let curCons = curCode >= 500 ? curCode : 545;
                     if (!skipRender) {
@@ -2101,9 +2223,58 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
+        function setRepeatSubMode(type, skipRender = false) {
+            currentSelectedMode = (type === 19) ? 19 : 18;
+            const btnHold = document.getElementById('repeat-btn-hold');
+            const btnToggle = document.getElementById('repeat-btn-toggle');
+            const desc = document.getElementById('repeat-submode-desc');
+            const inst = document.getElementById('recorder-instruction');
+            if (currentSelectedMode === 19) {
+                if (btnHold) { btnHold.style.background = 'transparent'; btnHold.style.color = 'var(--text-muted)'; }
+                if (btnToggle) { btnToggle.style.background = '#10b981'; btnToggle.style.color = '#fff'; }
+                if (desc) desc.innerText = '按一下开始持续连发，再按一下停止连发';
+                if (inst) inst.innerHTML = '<b>连击（切换连发）</b>：按一下开始按设定间隔持续连发，再按一下停止。';
+            } else {
+                if (btnHold) { btnHold.style.background = '#3b82f6'; btnHold.style.color = '#fff'; }
+                if (btnToggle) { btnToggle.style.background = 'transparent'; btnToggle.style.color = 'var(--text-muted)'; }
+                if (desc) desc.innerText = '按住期间按设定间隔持续连发目标按键，松开立即停止';
+                if (inst) inst.innerHTML = '<b>连击（按住连发）</b>：按住遥控器按键期间按设定间隔持续连发，松开立即停止。';
+            }
+            if (!skipRender) {
+                const mod = parseHexOrDec(document.getElementById('adv-mod').value) || 0;
+                const code = parseHexOrDec(document.getElementById('adv-code').value) || 0;
+                renderTriggerView(currentSelectedMode, mod, code, 0);
+            }
+        }
+
+        function onRepeatIntervalChange(val) {
+            const label = document.getElementById('label-repeat-ms');
+            if (label) label.innerText = `${val}ms`;
+            saveActiveTabToBinding();
+        }
+
+        function insertMacroSnippet(snippet) {
+            const ta = document.getElementById('macro-script-input');
+            if (!ta) return;
+            const start = ta.selectionStart || 0;
+            const end = ta.selectionEnd || 0;
+            const val = ta.value || '';
+            ta.value = val.slice(0, start) + snippet + val.slice(end);
+            ta.selectionStart = ta.selectionEnd = start + snippet.length;
+            ta.focus();
+            onMacroScriptChange();
+        }
+
+        function onMacroScriptChange() {
+            saveActiveTabToBinding();
+            renderTriggerView(12, 0, 0, 0);
+        }
+
         function switchAdvSubTab(sub) {
             currentAdvSubTab = sub;
-            if (currentSelectedMode === 11 || currentSelectedMode === 17) currentSelectedMode = sub === 'mqtt' ? 17 : 11;
+            if (currentSelectedMode === 11 || currentSelectedMode === 12 || currentSelectedMode === 17) {
+                currentSelectedMode = (sub === 'mqtt') ? 17 : ((sub === 'macro') ? 12 : 11);
+            }
             ['wol', 'macro', 'http', 'mqtt'].forEach(t => {
                 const btn = document.getElementById(`adv-tab-${t}`);
                 if (btn) {
@@ -2112,12 +2283,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                         btn.style.opacity = '1';
                     } else {
                         btn.classList.remove('active');
-                        if (t !== 'wol') btn.style.opacity = '0.7';
+                        if (t !== 'wol' && t !== 'mqtt' && t !== 'macro') btn.style.opacity = '0.7';
                     }
                 }
             });
 
             const wolPanel = document.getElementById('adv-panel-wol');
+            const macroPanel = document.getElementById('adv-panel-macro');
             const haPanel = document.getElementById('adv-panel-ha');
             const phPanel = document.getElementById('adv-panel-placeholder');
             const phIcon = document.getElementById('adv-placeholder-icon');
@@ -2126,30 +2298,30 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             if (sub === 'wol') {
                 if (wolPanel) wolPanel.style.display = 'block';
+                if (macroPanel) macroPanel.style.display = 'none';
+                if (haPanel) haPanel.style.display = 'none';
+                if (phPanel) phPanel.style.display = 'none';
+            } else if (sub === 'macro') {
+                if (wolPanel) wolPanel.style.display = 'none';
+                if (macroPanel) macroPanel.style.display = 'block';
                 if (haPanel) haPanel.style.display = 'none';
                 if (phPanel) phPanel.style.display = 'none';
             } else if (sub === 'mqtt') {
                 if (wolPanel) wolPanel.style.display = 'none';
+                if (macroPanel) macroPanel.style.display = 'none';
                 if (phPanel) phPanel.style.display = 'none';
                 if (haPanel) haPanel.style.display = 'block';
                 loadHaConfig();
             } else {
                 if (wolPanel) wolPanel.style.display = 'none';
+                if (macroPanel) macroPanel.style.display = 'none';
                 if (haPanel) haPanel.style.display = 'none';
                 if (phPanel) {
                     phPanel.style.display = 'block';
-                    if (sub === 'macro') {
-                        phIcon.innerText = '⌨️';
-                        phTitle.innerText = '按键宏序列 (Macro Sequence)';
-                        phDesc.innerText = '支持一键触发多步自定义按键连击与毫秒级延时操作，后续固件推出。';
-                    } else if (sub === 'http') {
+                    if (sub === 'http') {
                         phIcon.innerText = '🔗';
                         phTitle.innerText = 'HTTP Webhook 网络请求';
                         phDesc.innerText = '支持按键触发向局域网/互联网 REST API 发送 GET/POST 请求，后续固件推出。';
-                    } else if (sub === 'mqtt') {
-                        phIcon.innerText = '📡';
-                        phTitle.innerText = 'MQTT 物联网消息推送';
-                        phDesc.innerText = '支持按键触发向 MQTT Broker 发布指定 Topic 与 Payload，后续固件推出。';
                     }
                 }
             }
@@ -2263,19 +2435,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (isVoice && currentEditingLayer === 0) {
                 if (type !== 15) type = 7;
                 cons = 0;
+            } else if (type === 18 || type === 19) {
+                if (cons > 0) { key = 0; mod = 0; }
             } else if (type === 4 || type === 5 || cons > 0) {
                 type = 5;
                 key = 0;
                 mod = 0;
-            } else if (type === 9) {
-                key = 0;
-                mod = 0;
-                cons = 0;
-            } else if (type === 10) {
-                key = 0;
-                mod = 0;
-                cons = 0;
-            } else if (type === 11 || type === 17) {
+            } else if (type === 9 || type === 10 || type === 11 || type === 12 || type === 17) {
                 key = 0;
                 mod = 0;
                 cons = 0;
@@ -2283,7 +2449,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             currentSelectedMode = type;
             document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('selected'));
-            const cardId = (type === 4 || type === 5) ? 'mode-card-5' : ((type === 17) ? 'mode-card-11' : `mode-card-${type}`);
+            const cardId = (type === 4 || type === 5) ? 'mode-card-5' : ((type === 12 || type === 17) ? 'mode-card-11' : ((type === 18 || type === 19) ? 'mode-card-18' : `mode-card-${type}`));
             const card = document.getElementById(cardId) || document.getElementById(`mode-card-${type}`);
             if (card) card.classList.add('selected');
 
@@ -2325,6 +2491,13 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     else if (currentTriggerTab === 'double') mac = editingBinding.double_mac || '';
                 }
                 display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-orange); color:var(--accent-orange);">🌐 WOL 唤醒: ${mac || '未配置MAC'}</span>`;
+                syncQuickKeySelect(0, 0, 0);
+                return;
+            }
+
+            if (type === 12) {
+                const script = (document.getElementById('macro-script-input') ? document.getElementById('macro-script-input').value : '').trim();
+                display.innerHTML = `<span class="kbd-chip" style="border-color:var(--accent-cyan); color:var(--accent-cyan);">⌨️ AHK 宏: ${script ? escapeHaHtml(script.length > 32 ? script.slice(0, 32) + '…' : script) : '未配置'}</span>`;
                 syncQuickKeySelect(0, 0, 0);
                 return;
             }
@@ -2482,6 +2655,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('voice-mode-locked-card').style.display = 'block';
                 document.getElementById('long-press-header').style.display = 'none';
                 document.getElementById('double-click-header').style.display = 'none';
+                document.getElementById('repeat-config-box').style.display = 'none';
                 currentTriggerTab = 'click';
                 const vMode = (editingBinding.click_type === 15) ? 15 : 7;
                 setVoiceTriggerMode(vMode, true);
@@ -2521,13 +2695,17 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                     document.getElementById('quick-key-select').value = '';
                     return;
                 }
-                selectActionMode(5);
-                renderTriggerView(5, 0, 0, code);
+                if (currentSelectedMode === 18 || currentSelectedMode === 19) {
+                    renderTriggerView(currentSelectedMode, 0, 0, code);
+                } else {
+                    selectActionMode(5);
+                    renderTriggerView(5, 0, 0, code);
+                }
             } else if (prefix === 'm') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 12 || currentSelectedMode === 17) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, 0, 0);
             } else if (prefix === 'k') {
-                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) selectActionMode(2);
+                if (currentSelectedMode === 4 || currentSelectedMode === 5 || currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 12 || currentSelectedMode === 17) selectActionMode(2);
                 renderTriggerView(currentSelectedMode, mod, code, 0);
             }
         }
@@ -2539,9 +2717,12 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
             if (isVoice && currentEditingLayer === 0) {
                 renderTriggerView(currentSelectedMode, mod, code, 0);
+            } else if (currentSelectedMode === 18 || currentSelectedMode === 19) {
+                if (code >= 500) renderTriggerView(currentSelectedMode, 0, 0, code);
+                else renderTriggerView(currentSelectedMode, mod, code, 0);
             } else if (currentSelectedMode === 4 || currentSelectedMode === 5 || code >= 500) {
                 renderTriggerView(5, 0, 0, code);
-            } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) {
+            } else if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 12 || currentSelectedMode === 17) {
                 renderTriggerView(currentSelectedMode, 0, 0, 0);
             } else {
                 renderTriggerView(currentSelectedMode, mod, code, 0);
@@ -2562,10 +2743,10 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             if (modal.style.display !== 'flex') return;
 
             // If user is in layer switch, transparent, or advanced extension mode, ignore keypresses
-            if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 17) return;
+            if (currentSelectedMode === 9 || currentSelectedMode === 10 || currentSelectedMode === 11 || currentSelectedMode === 12 || currentSelectedMode === 17) return;
 
-            // If user is typing in advanced numeric inputs, let it through
-            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+            // If user is typing in advanced numeric inputs or macro textarea, let it through
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') return;
 
             e.preventDefault();
             e.stopPropagation();
