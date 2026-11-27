@@ -45,10 +45,7 @@ void setup() {
     // 1.5. Initialize LED Indicator
     led_indicator_init();
 
-    // 2. Initialize USB Composite Stack (UAC Mic + HID Keyboard + Consumer + CDC)
-    usb_composite_init();
     Serial.begin(115200);
-    delay(200);
 
     app_log("SYSTEM", "==================================================");
     app_log("SYSTEM", " %s v%s (%s)", FIRMWARE_NAME, FIRMWARE_VERSION, HARDWARE_TARGET);
@@ -85,6 +82,9 @@ void setup() {
     } else {
         app_log("SYSTEM", "Wi-Fi disabled: web server not started");
     }
+
+    // 7.5. Initialize USB Composite Stack last so loop() services TinyUSB immediately on enumeration
+    usb_composite_init();
 
     // 8. Launch BLE Central Task pinned to Core 0
     xTaskCreatePinnedToCore(

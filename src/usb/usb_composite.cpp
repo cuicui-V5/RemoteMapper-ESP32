@@ -27,6 +27,8 @@ extern "C" bool usbd_edpt_busy(uint8_t rhport, uint8_t ep_addr);
 
 static bool                  s_hw_sleep_detected    = false;
 static uint32_t              s_hw_sleep_start_ms    = 0;
+static uint32_t              s_hw_wake_ms           = 0;
+static bool                  s_wake_reconnect_done  = false;
 static uint16_t              s_last_soffn           = 0;
 static uint32_t              s_last_soffn_change_ms = 0;
 static uint32_t              s_boot_grace_until_ms  = 0;
@@ -102,27 +104,50 @@ void usb_composite_task(void) {
     // If SOF packets stopped for > 800ms, Windows is asleep/disconnected
     bool sof_active = (now - s_last_soffn_change_ms < 800);
 
-    // 1. Detect PC entering Sleep
+    // 1. Detect PC entering Sleep / Shutdown (USB host stopped SOF or suspended bus)
     if ((is_hw_suspended || !sof_active) && !s_hw_sleep_detected) {
         s_hw_sleep_detected = true;
         s_hw_sleep_start_ms = now;
-        app_log("USB_HW", "PC Sleep Detected! (SuspSts=%d, SOF stopped)", is_hw_suspended ? 1 : 0);
+        s_hw_wake_ms = 0;
+        s_wake_reconnect_done = false;
+        app_log("USB_HW", "PC Sleep/Off Detected (SuspSts=%d, SOF stopped)", is_hw_suspended ? 1 : 0);
     }
-    // 2. Detect PC waking up (SOF resumed after sleeping for > 2s)
+    // 2. Detect PC waking up / booting (SOF resumed)
     else if (s_hw_sleep_detected && !is_hw_suspended && sof_active) {
-        if (now - s_hw_sleep_start_ms >= 2000) {
-            app_log("USB_HW", "PC Wakeup Detected! SOF resumed -> performing clean USB hardware re-enumeration...");
-            vTaskDelay(pdMS_TO_TICKS(500));
-            // Pull D+ low to signal disconnect to Windows kernel
-            pinMode(20, OUTPUT);
-            pinMode(19, OUTPUT);
-            digitalWrite(20, LOW);
-            digitalWrite(19, LOW);
-            vTaskDelay(pdMS_TO_TICKS(250));
-            esp_restart();
-        } else {
-            s_hw_sleep_detected = false;
+        if (s_hw_wake_ms == 0) {
+            s_hw_wake_ms = now;
+            // Clear any stale endpoint stalls or stuck keys immediately without resetting the chip
+            for (uint8_t ep = 1; ep <= 4; ep++) {
+                usbd_edpt_clear_stall(0, (uint8_t)(ep | 0x80));
+            }
+            s_keyboard.releaseAll();
+            s_consumer.release();
+            app_log("USB_HW", "PC Wake/Boot Detected (SOF resumed, mounted=%d)", tud_mounted() ? 1 : 0);
         }
+
+        // Wait 2.5s after SOF resumes (allows BIOS POST / Windows USB handshake to settle).
+        // If host still hasn't mounted us, perform a clean TinyUSB soft disconnect/connect
+        // using the internal PHY pull-up (no GPIO mux hijack, no esp_restart).
+        if (now - s_hw_sleep_start_ms >= 2000 && !s_wake_reconnect_done && (now - s_hw_wake_ms >= 2500)) {
+            if (!tud_mounted()) {
+                app_log("USB_HW", "Host did not mount after wake/boot -> soft USB reconnect (tud_disconnect/connect)");
+                tud_disconnect();
+                vTaskDelay(pdMS_TO_TICKS(150));
+                tud_connect();
+            }
+            s_wake_reconnect_done = true;
+            s_hw_sleep_detected = false;
+            s_hw_wake_ms = 0;
+        } else if (tud_mounted() && (now - s_hw_wake_ms >= 1000)) {
+            s_hw_sleep_detected = false;
+            s_hw_wake_ms = 0;
+        } else if (now - s_hw_sleep_start_ms < 2000) {
+            s_hw_sleep_detected = false;
+            s_hw_wake_ms = 0;
+        }
+    } else if (s_hw_sleep_detected && (is_hw_suspended || !sof_active)) {
+        // Host suspended/reset again during BIOS -> OS handoff; restart wake settle timer
+        s_hw_wake_ms = 0;
     }
 }
 
