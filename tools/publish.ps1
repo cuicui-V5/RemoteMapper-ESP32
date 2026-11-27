@@ -20,7 +20,58 @@ Write-Host "         RemoteMapper-ESP32 一键发布固件至 GitHub Releases" -
 Write-Host "======================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-# 1. 检查 GitHub CLI (gh)
+# 1. 自动提取 Git 版本信息与提交说明
+$gitHash = "unknown"
+$gitMsg = "固件日常构建更新"
+$gitDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+
+$gitCmd = Get-Command git -ErrorAction SilentlyContinue
+if ($gitCmd) {
+    try {
+        $gitHash = (& git -C $rootDir rev-parse --short HEAD).Trim()
+        $gitMsg = ((& git -C $rootDir log -1 --pretty=%B) -join "`n").Trim()
+        $gitDate = (& git -C $rootDir log -1 --pretty=%cd --date=format:"%Y-%m-%d %H:%M:%S").Trim()
+    } catch {
+        Write-Host "[WARN] 无法从 git 提取提交信息: $_" -ForegroundColor Yellow
+    }
+}
+
+Write-Host "检测到 Git Commit: [$gitHash]" -ForegroundColor Magenta
+Write-Host "构建发布时间戳:     [$gitDate]" -ForegroundColor Gray
+Write-Host "本次更新提交说明:   [$gitMsg]" -ForegroundColor Gray
+Write-Host ""
+
+# 同步写入 include/version.h，确保当前与后续构建版本号完全一致
+$versionHeader = @"
+#pragma once
+
+#define FIRMWARE_NAME       "RemoteMapper-ESP32"
+#define FIRMWARE_VERSION    "$gitHash"
+#define HARDWARE_TARGET     "ESP32-S3"
+#define AUTHOR              "RemoteMapper Project"
+"@
+Set-Content -Path (Join-Path $rootDir "include\version.h") -Value $versionHeader -Encoding UTF8
+Write-Host "[VERSION] 固件头文件版本号已自动同步为: $gitHash" -ForegroundColor Green
+
+# 生成 version.json 供网页端刷机与硬件控制台在线检测
+$versionJsonObj = [ordered]@{
+    version = $gitHash
+    commit = $gitHash
+    commit_date = $gitDate
+    commit_message = $gitMsg
+    flash_url = "https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html"
+}
+$versionJsonStr = $versionJsonObj | ConvertTo-Json -Depth 4
+
+$webFlasherDir = Join-Path $rootDir "web-flasher"
+$webFlasherFirmwareDir = Join-Path $webFlasherDir "firmware"
+if (-not (Test-Path -LiteralPath $webFlasherFirmwareDir)) {
+    New-Item -ItemType Directory -Path $webFlasherFirmwareDir -Force | Out-Null
+}
+Set-Content -Path (Join-Path $webFlasherDir "version.json") -Value $versionJsonStr -Encoding UTF8
+Set-Content -Path (Join-Path $webFlasherFirmwareDir "version.json") -Value $versionJsonStr -Encoding UTF8
+
+# 2. 检查 GitHub CLI (gh)
 $ghCmd = Get-Command gh -ErrorAction SilentlyContinue
 if (-not $ghCmd) {
     Write-Host "[ERROR] 未检测到 GitHub CLI (gh.exe)！" -ForegroundColor Red
@@ -102,14 +153,30 @@ if ($LASTEXITCODE -eq 0) {
     & gh release delete $TagName -y 2>&1 | Out-Null
 }
 
-$notesParam = @()
-if (Test-Path -LiteralPath $readmeInstructions) {
-    $notesParam = @("-F", $readmeInstructions)
-} else {
-    $notesParam = @("-n", "RemoteMapper-ESP32 最新构建免环境刷机包。")
-}
+$releaseTitle = "RemoteMapper-ESP32 固件发布 ($gitHash)"
+$releaseNotes = @"
+### 固件版本: ``$gitHash``
+**构建发布时间**: $gitDate
 
-& gh release create $TagName $sevenZipFile $zipFile --title "免环境一键刷机包" @notesParam
+#### 📝 本次更新内容 (Git Commit):
+``````
+$gitMsg
+``````
+
+#### ⚡ 刷机与使用通道:
+- **网页端免驱动在线线刷 (推荐)**: https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html
+- **离线绿色刷机包**: 下载下方附件中的 ``RemoteMapper-Flasher.7z`` 或 ``RemoteMapper-Flasher.zip``，解压后双击 ``一键烧录.bat`` 即可按向导极速刷机。
+
+#### 📦 固件规格包含:
+- 全型号 ESP32-S3 支持（N16R8 / N8R8 / N8R2 / N4R2）
+- 包含全新刷机完整固件 (``*_full.bin``) 与保留配置升级固件 (``*_app.bin``)
+"@
+
+$tempNotesFile = Join-Path $env:TEMP ("remotemapper-notes-" + [System.Guid]::NewGuid().ToString().Substring(0,8) + ".md")
+[System.IO.File]::WriteAllText($tempNotesFile, $releaseNotes, [System.Text.Encoding]::UTF8)
+
+& gh release create $TagName $sevenZipFile $zipFile --title $releaseTitle --notes-file $tempNotesFile
+if (Test-Path -LiteralPath $tempNotesFile) { Remove-Item $tempNotesFile -Force -ErrorAction SilentlyContinue }
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[ERROR] 上传至 GitHub Releases 失败，请检查网络或权限！" -ForegroundColor Red
     exit 1
@@ -140,9 +207,16 @@ try {
     if (Test-Path -LiteralPath "$webFlasherDir\sitemap.xml") {
         Copy-Item "$webFlasherDir\sitemap.xml" "$ghPagesTempDir\" -Force
     }
+    if (Test-Path -LiteralPath "$webFlasherDir\version.json") {
+        Copy-Item "$webFlasherDir\version.json" "$ghPagesTempDir\" -Force
+    }
 
     $firmwareDestDir = Join-Path $ghPagesTempDir "firmware"
     New-Item -ItemType Directory -Path $firmwareDestDir -Force | Out-Null
+
+    if (Test-Path -LiteralPath "$webFlasherDir\version.json") {
+        Copy-Item "$webFlasherDir\version.json" "$firmwareDestDir\" -Force
+    }
 
     $models = @("N16R8", "N8R8", "N8R2", "N4R2")
     foreach ($m in $models) {
@@ -162,7 +236,7 @@ try {
     & git config user.email "github-actions[bot]@users.noreply.github.com"
     & git checkout -b gh-pages -q
     & git add .
-    & git commit -m "Deploy Web Serial Flasher with firmware ($TagName)" -q
+    & git commit -m "Deploy Web Serial Flasher with firmware ($gitHash)" -q
     & git remote add origin $remoteOrigin
     & git push origin gh-pages --force
     Pop-Location

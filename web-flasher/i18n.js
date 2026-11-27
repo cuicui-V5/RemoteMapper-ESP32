@@ -166,6 +166,9 @@ const TRANSLATIONS = {
     'flash.console_title': '通信终端控制台 (Console Log)',
     'flash.btn_clear': '清空日志',
     'flash.faq_title': '💡 常见问题与排查指南',
+    'flash.latest_badge': '最新发布固件',
+    'flash.commit_label': '更新说明 (Git Commit):',
+    'flash.releases_link': '📦 Releases 历史归档',
     'flash.success_title': '🎉 固件烧录成功！请按【RST】重启开发板',
     'flash.success_guide': '1. 烧录已完成，开发板无法自动重启退出刷机模式；<br>2. <strong>请按一下开发板上的【RST】按键</strong>（或重新插拔 USB 线）启动系统！'
   },
@@ -332,6 +335,9 @@ const TRANSLATIONS = {
     'flash.console_title': 'Serial Console Log',
     'flash.btn_clear': 'Clear Log',
     'flash.faq_title': '💡 Troubleshooting & FAQ',
+    'flash.latest_badge': 'Latest Firmware',
+    'flash.commit_label': 'Changelog (Git Commit):',
+    'flash.releases_link': '📦 GitHub Releases',
     'flash.success_title': '🎉 Flash Succeeded! Please press [RST] to reboot',
     'flash.success_guide': '1. Flashing is complete. The dev board cannot auto-reboot from bootloader mode.<br>2. <strong>Please physically press the [RST] button</strong> (or re-plug USB cable) to boot into normal mode!'
   }

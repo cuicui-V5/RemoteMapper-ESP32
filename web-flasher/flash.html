@@ -597,6 +597,74 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
+    /* 最新固件信息卡片 */
+    .version-banner {
+      background: linear-gradient(135deg, rgba(6, 182, 212, 0.08) 0%, rgba(14, 20, 34, 0.95) 100%);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      border-left: 4px solid var(--accent-cyan);
+      border-radius: 12px;
+      padding: 0.9rem 1.25rem;
+      margin-bottom: 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      animation: fadeIn 0.3s;
+    }
+    .version-banner-left {
+      flex: 1;
+      min-width: 260px;
+    }
+    .version-header-line {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      flex-wrap: wrap;
+    }
+    .version-badge {
+      background: rgba(6, 182, 212, 0.2);
+      color: var(--accent-cyan);
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      border: 1px solid rgba(6, 182, 212, 0.4);
+    }
+    .version-tag {
+      font-family: var(--font-mono);
+      font-weight: 700;
+      font-size: 1.05rem;
+      color: #fff;
+    }
+    .version-date {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+    }
+    .version-commit-box {
+      margin-top: 0.45rem;
+      font-size: 0.85rem;
+    }
+    .version-commit-label {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .version-commit-text {
+      color: #e2e8f0;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: inline-block;
+      white-space: pre-wrap;
+      word-break: break-all;
+      max-width: 100%;
+    }
+
     footer {
       text-align: center;
       padding: 2.5rem 1.5rem;
@@ -637,6 +705,26 @@
   </header>
 
   <div class="container">
+    <!-- 最新固件版本与更新说明卡片 -->
+    <div id="latest-firmware-banner" class="version-banner" style="display: none;">
+      <div class="version-banner-left">
+        <div class="version-header-line">
+          <span class="version-badge" data-i18n="flash.latest_badge">最新发布固件</span>
+          <span id="latest-version-tag" class="version-tag">--</span>
+          <span id="latest-version-date" class="version-date">--</span>
+        </div>
+        <div class="version-commit-box">
+          <div class="version-commit-label" data-i18n="flash.commit_label">更新说明 (Git Commit):</div>
+          <div id="latest-version-msg" class="version-commit-text">--</div>
+        </div>
+      </div>
+      <div class="version-banner-right">
+        <a href="https://github.com/cuicui-V5/RemoteMapper-ESP32/releases" target="_blank" class="nav-btn" style="font-size: 0.8rem;" data-i18n="flash.releases_link">
+          📦 Releases 历史归档
+        </a>
+      </div>
+    </div>
+
     <!-- 浏览器不兼容提示 -->
     <div id="unsupported-banner" class="alert-banner">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -960,6 +1048,32 @@
       serialBadge.className = 'badge badge-amber';
       btnConnect.disabled = true;
     }
+
+    // 异步加载并展示最新固件发布版本与更新说明
+    async function loadLatestVersionInfo() {
+      try {
+        const resp = await fetch(`./firmware/version.json?v=${Date.now()}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.version) {
+            const banner = document.getElementById('latest-firmware-banner');
+            const tag = document.getElementById('latest-version-tag');
+            const date = document.getElementById('latest-version-date');
+            const msg = document.getElementById('latest-version-msg');
+            if (tag) tag.textContent = data.version;
+            if (date && data.commit_date) date.textContent = `(${data.commit_date})`;
+            if (msg && data.commit_message) {
+              const commitText = Array.isArray(data.commit_message) ? data.commit_message.join('\n').trim() : String(data.commit_message).trim();
+              msg.textContent = commitText;
+            }
+            if (banner) banner.style.display = 'flex';
+          }
+        }
+      } catch (e) {
+        console.debug('Failed to load version.json', e);
+      }
+    }
+    loadLatestVersionInfo();
 
     // 控制台输出工具
     function appendLog(text, type = 'info') {

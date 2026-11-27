@@ -288,16 +288,68 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             box-shadow: 0 0 12px rgba(168, 85, 247, 0.9), inset 0 0 6px rgba(168, 85, 247, 0.7) !important;
             border: 2px solid #c084fc !important;
         }
+
+        /* Online Firmware Update Checker */
+        .update-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 9999px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            line-height: 1.4;
+        }
+        .update-pill-new {
+            background: rgba(245, 158, 11, 0.15);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.5);
+            animation: pulse-update 2s infinite ease-in-out;
+        }
+        .update-pill-new:hover {
+            background: rgba(245, 158, 11, 0.3);
+            border-color: #f59e0b;
+            color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.35);
+        }
+        .update-pill-latest {
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            cursor: default;
+        }
+        .update-pill-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+        }
+        .update-pill-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            border-color: var(--accent-cyan);
+        }
+        @keyframes pulse-update {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5); }
+            70% { box-shadow: 0 0 0 7px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <div style="display: flex; align-items: center; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
                 <div class="logo">RemoteMapper</div>
                 <span class="badge">ESP32-S3 Hardware Bridge</span>
             </div>
-            <div id="top-status" style="font-size: 13px; color: var(--text-muted);">正在连接硬件...</div>
+            <div style="display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                <div id="update-checker"></div>
+                <div id="top-status" style="font-size: 13px; color: var(--text-muted);">正在连接硬件...</div>
+            </div>
         </header>
 
         <!-- System Overview Cards -->
@@ -1383,6 +1435,67 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
             }
         }
 
+        let updateCheckDone = false;
+        let updateChecking = false;
+
+        async function checkOnlineUpdate(currentVersion) {
+            if (updateCheckDone || updateChecking || !currentVersion) return;
+            const container = document.getElementById('update-checker');
+            if (!container) return;
+            
+            updateChecking = true;
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3500);
+                
+                const res = await fetch('https://cuicui-v5.github.io/RemoteMapper-ESP32/firmware/version.json?v=' + Date.now(), {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+                
+                if (res.ok) {
+                    updateCheckDone = true;
+                    const remote = await res.json();
+                    const remoteVer = (remote.version || '').trim();
+                    const curVer = (currentVersion || '').trim();
+                    
+                    if (remoteVer && curVer && remoteVer.toLowerCase() !== curVer.toLowerCase()) {
+                        const flashUrl = remote.flash_url || 'https://cuicui-v5.github.io/RemoteMapper-ESP32/flash.html';
+                        const rawMsg = Array.isArray(remote.commit_message) ? remote.commit_message.join(' ').trim() : (remote.commit_message || '').trim();
+                        const commitMsg = rawMsg.replace(/"/g, '&quot;').replace(/\n/g, ' ');
+                        container.innerHTML = `
+                            <a href="${flashUrl}" target="_blank" class="update-pill update-pill-new" title="最新发布版本: ${remoteVer}&#10;更新说明: ${commitMsg}&#10;点击在新标签页打开网页刷机平台一键升级">
+                                <span>⚡ 发现新固件 (${remoteVer})</span>
+                                <span style="text-decoration: underline; font-weight: 700;">一键刷机 ↗</span>
+                            </a>
+                        `;
+                    } else {
+                        container.innerHTML = `
+                            <span class="update-pill update-pill-latest" title="当前固件已是最新构建版本 (${curVer})">
+                                <span style="width: 6px; height: 6px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+                                已是最新版
+                            </span>
+                        `;
+                    }
+                } else {
+                    renderCheckUpdateManualBtn(container, currentVersion);
+                }
+            } catch (e) {
+                renderCheckUpdateManualBtn(container, currentVersion);
+            } finally {
+                updateChecking = false;
+            }
+        }
+
+        function renderCheckUpdateManualBtn(container, currentVersion) {
+            if (!container) return;
+            container.innerHTML = `
+                <button class="update-pill update-pill-btn" onclick="updateCheckDone = false; checkOnlineUpdate('${currentVersion}');" title="点击检查是否有更新版本 (需电脑能够访问外网)">
+                    🔍 检查更新
+                </button>
+            `;
+        }
+
         async function fetchStatus() {
             try {
                 const res = await fetch('/api/status');
@@ -1393,6 +1506,8 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
                 document.getElementById('stat-audio-frames').innerText = `${d.frames_decoded} 帧`;
                 document.getElementById('stat-mem').innerText = `Heap: ${Math.round(d.free_heap/1024)}KB | PSRAM: ${Math.round(d.free_psram/1024/1024)}MB`;
                 
+                checkOnlineUpdate(d.version);
+
                 await refreshBleInfo();
 
                 const apBadgeEl = document.getElementById('stat-ap-badge');

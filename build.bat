@@ -51,6 +51,26 @@ if not exist "%~dp0RemoteMapper-Flasher\bin" (
     mkdir "%~dp0RemoteMapper-Flasher\bin"
 )
 
+:: Sync version.h with current git short commit hash if git is available
+where git >nul 2>nul
+if %ERRORLEVEL% EQU 0 (
+    set "GIT_HASH="
+    for /f "tokens=*" %%g in ('git rev-parse --short HEAD 2^>nul') do (
+        set "GIT_HASH=%%g"
+    )
+    if defined GIT_HASH (
+        (
+            echo #pragma once
+            echo.
+            echo #define FIRMWARE_NAME       "RemoteMapper-ESP32"
+            echo #define FIRMWARE_VERSION    "!GIT_HASH!"
+            echo #define HARDWARE_TARGET     "ESP32-S3"
+            echo #define AUTHOR              "RemoteMapper Project"
+        ) > "%~dp0include\version.h"
+        echo [VERSION] Firmware version synced to git commit !GIT_HASH!
+    )
+)
+
 set "TARGET=%1"
 if "%TARGET%"=="" set "TARGET=all"
 
